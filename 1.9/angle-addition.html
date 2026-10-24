@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>和角公式</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; max-width: 620px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; user-select: none; }
+  .panel { flex: 1; min-width: 400px; max-width: 580px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 10px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 19px; font-weight: bold; }
+  .c1 { color: var(--comp1); } .c2 { color: var(--comp2); } .o { color: var(--output); }
+  .good { color: var(--good); }
+  button { font: inherit; padding: 5px 12px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  input[type=range] { width: 220px; vertical-align: middle; }
+  table.m { border-collapse: collapse; font-family: "Cambria Math", serif; font-size: 15px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); }
+  table.m td { padding: 3px 10px; text-align: center; }
+  .mats { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>和角公式</h1>
+    <p class="hint">两个滑块分别是角 α 和角 β。图里橙色箭头是 (1, 0) 逆时针转 β 以后的位置，
+      紫色箭头是在此基础上再转 α 以后的位置。右边同时给出两条路算出的四个数：
+      一条是两个旋转矩阵相乘，一条是直接按 α + β 这一个角算。小数是约数，末位可能差 1。</p>
+    <svg id="plane" width="520" height="520" viewBox="0 0 520 520"></svg>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div class="row"><span class="label c1">角 β（先转）</span>
+        <span><input type="range" id="rb" min="-180" max="180" step="0.001" value="45">
+          <span class="num big c1" id="rbv"></span></span></div>
+      <div class="row"><span class="label o">角 α（后转）</span>
+        <span><input type="range" id="ra" min="-180" max="180" step="0.001" value="53.130">
+          <span class="num big o" id="rav"></span></span></div>
+      <div style="margin-top:6px">
+        <button id="p1">α = 53.130°、β = 45°</button>
+        <button id="p2">α = β = 30°（二倍角）</button>
+        <button id="p3">α = 90°、β = 90°</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="mats">
+        <div>
+          <div class="label" style="margin-bottom:4px">转 α 的矩阵</div>
+          <table class="m"><tr><td class="o" id="a11"></td><td class="o" id="a12"></td></tr>
+                           <tr><td class="o" id="a21"></td><td class="o" id="a22"></td></tr></table>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:4px">转 β 的矩阵</div>
+          <table class="m"><tr><td class="c1" id="b11"></td><td class="c1" id="b12"></td></tr>
+                           <tr><td class="c1" id="b21"></td><td class="c1" id="b22"></td></tr></table>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:4px">两者的乘积</div>
+          <table class="m"><tr><td id="c11"></td><td id="c12"></td></tr>
+                           <tr><td id="c21"></td><td id="c22"></td></tr></table>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:4px">转 α + β 的矩阵</div>
+          <table class="m"><tr><td class="good" id="d11"></td><td class="good" id="d12"></td></tr>
+                           <tr><td class="good" id="d21"></td><td class="good" id="d22"></td></tr></table>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px"><span class="label">四个位置的最大差别</span>
+        <span class="num good" id="gap"></span></div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:6px">和角公式的两边</div>
+      <div class="row"><span class="label">cos α cos β − sin α sin β</span>
+        <span class="num" id="lc"></span></div>
+      <div class="row"><span class="label good">cos(α + β)</span><span class="num good" id="rc"></span></div>
+      <div class="row" style="margin-top:6px"><span class="label">sin α cos β + cos α sin β</span>
+        <span class="num" id="ls"></span></div>
+      <div class="row"><span class="label good">sin(α + β)</span><span class="num good" id="rs"></span></div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:6px">差角公式的两边</div>
+      <div class="row"><span class="label">cos α cos β + sin α sin β</span>
+        <span class="num" id="lc2"></span></div>
+      <div class="row"><span class="label good">cos(α − β)</span><span class="num good" id="rc2"></span></div>
+      <div class="row" style="margin-top:6px"><span class="label">sin α cos β − cos α sin β</span>
+        <span class="num" id="ls2"></span></div>
+      <div class="row"><span class="label good">sin(α − β)</span><span class="num good" id="rs2"></span></div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label">两个角的度数</span><span class="num" id="degs"></span></div>
+      <div class="row"><span class="label">写成复数相乘</span><span class="num o" id="cmul"></span></div>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD", neutral: "#9AA6B6",
+            light: "#E7ECF3", good: "#3E9B3A" };
+  var NS = "http://www.w3.org/2000/svg";
+  var SIZE = 520, O = SIZE / 2, RANGE = 1.45, UNIT = O / RANGE;
+  var svg = document.getElementById("plane");
+
+  function px(x, y) { return [O + UNIT * x, O - UNIT * y]; }
+  function el(tag, at) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in at) e.setAttribute(k, at[k]);
+    return e;
+  }
+  function line(x1, y1, x2, y2, col, wd, dash) {
+    var a = px(x1, y1), b = px(x2, y2);
+    var e = el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: col, "stroke-width": wd });
+    if (dash) e.setAttribute("stroke-dasharray", dash);
+    svg.appendChild(e);
+  }
+  function arrow(v, col, wd) {
+    var a = px(0, 0), b = px(v[0], v[1]);
+    var th = Math.atan2(b[1] - a[1], b[0] - a[0]), h = 11;
+    svg.appendChild(el("line", { x1: a[0], y1: a[1], x2: b[0] - h * Math.cos(th),
+      y2: b[1] - h * Math.sin(th), stroke: col, "stroke-width": wd }));
+    var p = [b, [b[0] + h * Math.cos(th + 2.7), b[1] + h * Math.sin(th + 2.7)],
+             [b[0] + h * Math.cos(th - 2.7), b[1] + h * Math.sin(th - 2.7)]];
+    svg.appendChild(el("polygon", { points: p.map(function (q) {
+      return q[0].toFixed(1) + "," + q[1].toFixed(1); }).join(" "), fill: col }));
+  }
+  function arc(r, a0, a1, col) {
+    var pts = [], n = 120, k;
+    for (k = 0; k <= n; k++) {
+      var t = (a0 + (a1 - a0) * k / n) * Math.PI / 180;
+      pts.push(px(r * Math.cos(t), r * Math.sin(t)));
+    }
+    svg.appendChild(el("path", { d: "M " + pts.map(function (q) {
+      return q[0].toFixed(1) + " " + q[1].toFixed(1); }).join(" L "),
+      fill: "none", stroke: col, "stroke-width": 1.4 }));
+  }
+  function text(x, y, s, col, size) {
+    var p = px(x, y);
+    var e = el("text", { x: p[0], y: p[1], fill: col, "font-size": size || 12,
+      "font-family": "Cambria Math, serif", "text-anchor": "middle" });
+    e.textContent = s;
+    svg.appendChild(e);
+  }
+  function fmt(v, n) {
+    var s = (Math.abs(v) < 5e-5 ? 0 : v).toFixed(n === undefined ? 4 : n);
+    return s.replace("-", "−");
+  }
+  function ang() {
+    return [+document.getElementById("ra").value, +document.getElementById("rb").value];
+  }
+  function rot(d) {
+    var t = d * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+    return [[c, -s], [s, c]];
+  }
+  function mm(A, B) {
+    return [[A[0][0] * B[0][0] + A[0][1] * B[1][0], A[0][0] * B[0][1] + A[0][1] * B[1][1]],
+            [A[1][0] * B[0][0] + A[1][1] * B[1][0], A[1][0] * B[0][1] + A[1][1] * B[1][1]]];
+  }
+
+  function draw() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var g = ang(), al = g[0], be = g[1];
+    var k;
+    for (k = -1; k <= 1; k++) {
+      line(k, -RANGE, k, RANGE, C.light, 1);
+      line(-RANGE, k, RANGE, k, C.light, 1);
+    }
+    line(-RANGE, 0, RANGE, 0, C.neutral, 1.5);
+    line(0, -RANGE, 0, RANGE, C.neutral, 1.5);
+    var cir = [], t;
+    for (t = 0; t <= 360; t += 3) cir.push(px(Math.cos(t * Math.PI / 180), Math.sin(t * Math.PI / 180)));
+    svg.appendChild(el("path", { d: "M " + cir.map(function (q) {
+      return q[0].toFixed(1) + " " + q[1].toFixed(1); }).join(" L "),
+      fill: "none", stroke: C.neutral, "stroke-width": 1, "stroke-dasharray": "4 4" }));
+    var rb = be * Math.PI / 180, rs = (al + be) * Math.PI / 180;
+    arrow([1, 0], C.neutral, 2);
+    arrow([Math.cos(rb), Math.sin(rb)], C.comp1, 3);
+    arrow([Math.cos(rs), Math.sin(rs)], C.output, 3);
+    arc(0.36, 0, be, C.comp1);
+    arc(0.52, be, al + be, C.output);
+    text(1.12, 0.08, "起点 (1, 0)", C.neutral, 12);
+    text(Math.cos(rb) * 1.16, Math.sin(rb) * 1.16, "转 β", C.comp1, 13);
+    text(Math.cos(rs) * 1.26, Math.sin(rs) * 1.26, "再转 α", C.output, 13);
+    report(al, be);
+  }
+
+  function report(al, be) {
+    function set(id, s) { document.getElementById(id).textContent = s; }
+    document.getElementById("rav").textContent = fmt(al, 3) + "°";
+    document.getElementById("rbv").textContent = fmt(be, 3) + "°";
+    var A = rot(al), B = rot(be), Cm = mm(A, B), D = rot(al + be);
+    var ids = [["a11", "a12", "a21", "a22"], ["b11", "b12", "b21", "b22"],
+               ["c11", "c12", "c21", "c22"], ["d11", "d12", "d21", "d22"]];
+    [A, B, Cm, D].forEach(function (M, n) {
+      set(ids[n][0], fmt(M[0][0])); set(ids[n][1], fmt(M[0][1]));
+      set(ids[n][2], fmt(M[1][0])); set(ids[n][3], fmt(M[1][1]));
+    });
+    var gap = 0, i, j;
+    for (i = 0; i < 2; i++) for (j = 0; j < 2; j++) gap = Math.max(gap, Math.abs(Cm[i][j] - D[i][j]));
+    set("gap", gap < 5e-12 ? "0（四个位置完全相同）" : fmt(gap, 12));
+    var ca = Math.cos(al * Math.PI / 180), sa = Math.sin(al * Math.PI / 180);
+    var cb = Math.cos(be * Math.PI / 180), sb = Math.sin(be * Math.PI / 180);
+    set("lc", fmt(ca * cb - sa * sb)); set("rc", fmt(Math.cos((al + be) * Math.PI / 180)));
+    set("ls", fmt(sa * cb + ca * sb)); set("rs", fmt(Math.sin((al + be) * Math.PI / 180)));
+    set("lc2", fmt(ca * cb + sa * sb)); set("rc2", fmt(Math.cos((al - be) * Math.PI / 180)));
+    set("ls2", fmt(sa * cb - ca * sb)); set("rs2", fmt(Math.sin((al - be) * Math.PI / 180)));
+    set("degs", fmt(al, 3) + "° + " + fmt(be, 3) + "° = " + fmt(al + be, 3) + "°");
+    function ci(re, im) {
+      // 虚部为负时写成减号，不写"加负数"
+      return fmt(re, 3) + (im < 0 ? " − " : " + ") + fmt(Math.abs(im), 3) + "i";
+    }
+    set("cmul", "(" + ci(ca, sa) + ")(" + ci(cb, sb) + ") = "
+      + ci(ca * cb - sa * sb, sa * cb + ca * sb));
+  }
+
+  function preset(a, b) {
+    document.getElementById("ra").value = String(a);
+    document.getElementById("rb").value = String(b);
+    draw();
+  }
+  document.getElementById("ra").addEventListener("input", draw);
+  document.getElementById("rb").addEventListener("input", draw);
+  document.getElementById("p1").addEventListener("click", function () { preset(53.130, 45); });
+  document.getElementById("p2").addEventListener("click", function () { preset(30, 30); });
+  document.getElementById("p3").addEventListener("click", function () { preset(90, 90); });
+  draw();
+}());
+</script>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>张量浏览器</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 8px; color: #5b6573; font-weight: normal; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; max-width: 640px; }
+  .left { flex: 1; min-width: 480px; }
+  .panel { flex: 1; min-width: 380px; max-width: 520px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 10px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 19px; font-weight: bold; }
+  button { font: inherit; padding: 5px 11px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  button:disabled { color: var(--neutral); cursor: not-allowed; background: #fafbfc; }
+  .layers { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+  .layer { }
+  .layer .cap { font-size: 12px; color: var(--neutral); margin-bottom: 4px; text-align: center; }
+  table.t { border-collapse: collapse; }
+  table.t td { width: 46px; height: 34px; text-align: center; border: 1px solid var(--neutral);
+               font-family: "Cambria Math", serif; font-size: 16px; cursor: pointer; }
+  table.t td.on { background: var(--state); color: #fff; font-weight: bold; }
+  .q { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .qc { text-align: center; }
+  .qv { width: 38px; height: 30px; line-height: 30px; border: 1px solid var(--neutral);
+        font-family: "Cambria Math", serif; font-size: 14px; border-radius: 3px; }
+  .qv.on { background: var(--state); color: #fff; font-weight: bold; }
+  .qi { font-size: 11px; color: var(--neutral); font-family: "Cambria Math", serif; }
+  .ok { color: var(--good); }
+  .no { color: var(--bad); }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 12px; }
+  .tag.ok { background: #e8f5e8; color: var(--good); }
+  .tag.no { background: #fdeaea; color: var(--bad); }
+  .order { font-family: "Cambria Math", serif; font-size: 14px; color: #5b6573; line-height: 1.7; }
+  .c0 { color: var(--input); } .c1 { color: var(--comp1); } .c2 { color: var(--comp2); }
+</style>
+</head>
+<body>
+<main>
+  <div class="left">
+    <h1>张量浏览器</h1>
+    <p class="hint">下面这个张量一共 24 个数。底层那个一维排列里的数不会因为换轴或变形而改变，改变的只是形状和步长。
+      点任意一个格子，右边会给出它的各个下标、线性索引的算式和取到的值。轴的编号和轴上的位置都从 0 数起。</p>
+    <div class="card">
+      <h2>换轴：调换两个轴（形状和步长一起调换，一维排列不动）</h2>
+      <div id="swaps"></div>
+    </div>
+    <div class="card">
+      <h2>变形：按新形状重新切开（一维排列不动，只换切法）</h2>
+      <div id="reshapes"></div>
+      <div id="reshapeNote" style="font-size:13px;margin-top:6px"></div>
+    </div>
+    <div class="card">
+      <h2>当前的张量</h2>
+      <div class="layers" id="view"></div>
+    </div>
+    <div class="card">
+      <h2>底层的一维排列（格子里是值，下方是线性索引）</h2>
+      <div class="q" id="queue"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div class="row"><span class="label">形状</span><span class="num big" id="shape"></span></div>
+      <div class="row"><span class="label">步长</span><span class="num big" id="stride"></span></div>
+      <div class="row"><span class="label">连续吗</span><span id="contig"></span></div>
+      <div class="row"><span class="label">按这个形状连续存放时的步长</span><span class="num" id="wantStride"></span></div>
+    </div>
+    <div class="card">
+      <h2>选中的那个格子</h2>
+      <div class="row"><span class="label">各个下标</span><span class="num big" id="idx"></span></div>
+      <div class="row"><span class="label">线性索引的算式</span><span class="num" id="formula"></span></div>
+      <div class="row"><span class="label">线性索引</span><span class="num big" id="lin"></span></div>
+      <div class="row"><span class="label">取到的值</span><span class="num big" id="val"></span></div>
+    </div>
+    <div class="card">
+      <h2>按当前形状从头读到尾，依次取到的线性索引</h2>
+      <div class="order" id="order"></div>
+      <div style="margin-top:8px;font-size:13px" id="orderNote"></div>
+    </div>
+    <div class="card">
+      <h2>把数真的搬一遍</h2>
+      <p style="font-size:13px;color:#5b6573;margin:0 0 8px">
+        不连续的张量不能直接变形。按下面这个按钮，会把 24 个数按当前形状读出来的顺序重新写一遍，
+        一维排列的内容随之改变，张量重新变成连续的。</p>
+      <button id="makeContig">整理成连续的</button>
+      <button id="reset">全部恢复原样</button>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var COLORS = ["var(--input)", "var(--comp1)", "var(--comp2)"];
+  var ORIG_SHAPE = [3, 4, 2];
+  var N = 24;
+  var st = null;
+
+  function contigStrides(shape) {
+    var s = new Array(shape.length), acc = 1, k;
+    for (k = shape.length - 1; k >= 0; k--) { s[k] = acc; acc *= shape[k]; }
+    return s;
+  }
+  function reset() {
+    var q = [], t;
+    for (t = 0; t < N; t++) q.push(t + 1);
+    st = { shape: ORIG_SHAPE.slice(), strides: contigStrides(ORIG_SHAPE), queue: q, sel: null };
+  }
+  function isContig() {
+    var w = contigStrides(st.shape), k;
+    for (k = 0; k < st.shape.length; k++) if (w[k] !== st.strides[k]) return false;
+    return true;
+  }
+  function allIndex(shape) {
+    var out = [[]], k, next, i, j;
+    for (k = 0; k < shape.length; k++) {
+      next = [];
+      for (i = 0; i < out.length; i++) for (j = 0; j < shape[k]; j++) next.push(out[i].concat([j]));
+      out = next;
+    }
+    return out;
+  }
+  function lin(idx) {
+    var p = 0, k;
+    for (k = 0; k < idx.length; k++) p += idx[k] * st.strides[k];
+    return p;
+  }
+  function fmt(a) { return "(" + a.join(", ") + (a.length === 1 ? "," : "") + ")"; }
+
+  function render() {
+    var d = document;
+    d.getElementById("shape").textContent = fmt(st.shape);
+    d.getElementById("stride").textContent = fmt(st.strides);
+    d.getElementById("wantStride").textContent = fmt(contigStrides(st.shape));
+    var ct = isContig();
+    d.getElementById("contig").innerHTML = ct
+      ? '<span class="tag ok">连续</span>' : '<span class="tag no">不连续</span>';
+
+    // 换轴按钮
+    var sw = d.getElementById("swaps"); sw.innerHTML = "";
+    var a, b;
+    for (a = 0; a < st.shape.length; a++) for (b = a + 1; b < st.shape.length; b++) {
+      (function (a, b) {
+        var btn = d.createElement("button");
+        btn.textContent = "调换轴 " + a + " 和轴 " + b;
+        btn.onclick = function () {
+          var t = st.shape[a]; st.shape[a] = st.shape[b]; st.shape[b] = t;
+          t = st.strides[a]; st.strides[a] = st.strides[b]; st.strides[b] = t;
+          st.sel = null; render();
+        };
+        sw.appendChild(btn);
+      })(a, b);
+    }
+    if (st.shape.length < 2) sw.appendChild(d.createTextNode("只有一个轴，没有可以调换的两个轴。"));
+
+    // 变形按钮
+    var rs = d.getElementById("reshapes"); rs.innerHTML = "";
+    var presets = [[3, 4, 2], [3, 2, 4], [2, 3, 4], [12, 2], [3, 8], [4, 6], [24]];
+    presets.forEach(function (p) {
+      var btn = d.createElement("button");
+      btn.textContent = fmt(p);
+      btn.disabled = !ct;
+      btn.onclick = function () {
+        st.shape = p.slice(); st.strides = contigStrides(p); st.sel = null; render();
+      };
+      rs.appendChild(btn);
+    });
+    d.getElementById("reshapeNote").innerHTML = ct
+      ? '<span class="ok">当前是连续的，变形不用搬数。</span>'
+      : '<span class="no">当前不连续，变形的按钮都停用了：要先按下右下角的“整理成连续的”，把 24 个数真的搬一遍。</span>';
+
+    // 张量本体
+    var view = d.getElementById("view"); view.innerHTML = "";
+    var shape = st.shape, nd = shape.length;
+    var outer = nd === 3 ? shape[0] : 1;
+    var k;
+    for (k = 0; k < outer; k++) {
+      var box = d.createElement("div"); box.className = "layer";
+      var cap = d.createElement("div"); cap.className = "cap";
+      cap.textContent = nd === 3 ? ("轴 0 的下标 " + k) : (nd === 1 ? "只有一个轴" : "一张表");
+      if (nd === 3) cap.style.color = COLORS[k % 3];
+      box.appendChild(cap);
+      var rows = nd === 1 ? 1 : shape[nd - 2];
+      var cols = shape[nd - 1];
+      var tab = d.createElement("table"); tab.className = "t";
+      var i, j;
+      for (i = 0; i < rows; i++) {
+        var tr = d.createElement("tr");
+        for (j = 0; j < cols; j++) {
+          var idx = nd === 3 ? [k, i, j] : (nd === 2 ? [i, j] : [j]);
+          var td = d.createElement("td");
+          td.textContent = st.queue[lin(idx)];
+          if (st.sel && st.sel.join(",") === idx.join(",")) td.className = "on";
+          (function (idx) { td.onclick = function () { st.sel = idx; render(); }; })(idx);
+          tr.appendChild(td);
+        }
+        tab.appendChild(tr);
+      }
+      box.appendChild(tab);
+      view.appendChild(box);
+    }
+
+    // 一维排列
+    var qd = d.getElementById("queue"); qd.innerHTML = "";
+    var selLin = st.sel ? lin(st.sel) : -1;
+    for (k = 0; k < N; k++) {
+      var wrap = d.createElement("div"); wrap.className = "qc";
+      var cell = d.createElement("div");
+      cell.className = k === selLin ? "qv on" : "qv";
+      cell.textContent = st.queue[k];
+      var tag = d.createElement("div"); tag.className = "qi"; tag.textContent = k;
+      wrap.appendChild(cell); wrap.appendChild(tag);
+      qd.appendChild(wrap);
+    }
+
+    // 选中格子
+    if (st.sel) {
+      var terms = st.sel.map(function (v, m) { return st.strides[m] + " × " + v; });
+      var sum = lin(st.sel);
+      d.getElementById("idx").textContent = fmt(st.sel);
+      d.getElementById("formula").textContent = terms.join(" + ") + " = " + sum;
+      d.getElementById("lin").textContent = sum;
+      d.getElementById("val").textContent = st.queue[sum];
+    } else {
+      d.getElementById("idx").textContent = "（点一个格子）";
+      d.getElementById("formula").textContent = "—";
+      d.getElementById("lin").textContent = "—";
+      d.getElementById("val").textContent = "—";
+    }
+
+    // 读到的顺序
+    var order = allIndex(st.shape).map(lin);
+    d.getElementById("order").textContent = order.join("、");
+    d.getElementById("orderNote").innerHTML = ct
+      ? '<span class="ok">正好是 0、1、2、…、23，和一维排列的顺序一样，所以是连续的。</span>'
+      : '<span class="no">不是 0、1、2、… 一路连下去，是跳着取的，所以不连续。</span>';
+  }
+
+  document.getElementById("makeContig").onclick = function () {
+    var order = allIndex(st.shape).map(lin);
+    st.queue = order.map(function (p) { return st.queue[p]; });
+    st.strides = contigStrides(st.shape);
+    st.sel = null; render();
+  };
+  document.getElementById("reset").onclick = function () { reset(); render(); };
+
+  reset();
+  render();
+})();
+</script>
+</body>
+</html>

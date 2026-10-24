@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>截断 SVD</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; max-width: 620px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; user-select: none; }
+  .panel { flex: 1; min-width: 380px; max-width: 560px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 10px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 20px; font-weight: bold; }
+  .c1 { color: var(--comp1); } .c2 { color: var(--comp2); } .o { color: var(--output); }
+  .good { color: var(--good); } .bad { color: var(--bad); }
+  button { font: inherit; padding: 5px 12px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  button.on { background: var(--light); border-color: var(--output); font-weight: bold; }
+  input[type=range] { width: 220px; vertical-align: middle; }
+  table.m { border-collapse: collapse; font-family: "Cambria Math", serif; font-size: 16px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); }
+  table.m td { padding: 3px 10px; text-align: center; }
+  .mats { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>截断 SVD</h1>
+    <p class="hint">滑块控制留下前几项外积。左边是留下的那几项加起来的结果：圆形图案按格子的深浅画，
+      小于 0 的按 0 画成白色、大于 1 的按 1 画成黑色；3 × 2 的那个矩阵直接写出六个数。
+      右边给出误差、误差的平方、丢掉的奇异值的平方之和，两者应当相等。小数是约数，末位可能差 1。</p>
+    <div>
+      <button id="mDisk" class="on">16 × 16 的圆形图案</button>
+      <button id="mH">3 × 2 的 H = [1 0; 0 1; 2 2]</button>
+    </div>
+    <svg id="pic" width="520" height="520" viewBox="0 0 520 520" style="margin-top:12px"></svg>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div class="row"><span class="label">留下前几项　k</span>
+        <span><input type="range" id="k" min="0" max="4" step="1" value="1">
+          <span class="num big o" id="kv"></span></span></div>
+      <div class="row"><span class="label">这几项加起来的矩阵的秩</span><span class="num" id="rank"></span></div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:6px">全部奇异值</div>
+      <div class="num" id="sigmas" style="line-height:1.8"></div>
+      <div class="row" style="margin-top:6px"><span class="label">原矩阵的 Frobenius 范数</span>
+        <span class="num" id="fnorm"></span></div>
+      <div class="row"><span class="label">它的平方（= 奇异值的平方和）</span>
+        <span class="num" id="fsq"></span></div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label bad">误差（Frobenius 范数）</span>
+        <span class="num big bad" id="err"></span></div>
+      <div class="row"><span class="label">误差的平方</span><span class="num bad" id="errsq"></span></div>
+      <div class="row"><span class="label">丢掉的奇异值的平方之和</span>
+        <span class="num good" id="dropsq"></span></div>
+      <div class="row"><span class="label">两者相等</span><span class="num good" id="same"></span></div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label">逐个存元素要存的个数</span><span class="num" id="full"></span></div>
+      <div class="row"><span class="label">存成 k 项外积要存的个数</span><span class="num" id="comp"></span></div>
+      <div class="row"><span class="label">每项存一个 m 维向量、一个 n 维向量、一个奇异值</span>
+        <span class="num" id="per"></span></div>
+    </div>
+    <div class="card" id="hcard">
+      <div class="label" style="margin-bottom:6px">留下的几项加起来（3 × 2）</div>
+      <div class="mats">
+        <div>
+          <table class="m"><tr><td class="o" id="h11"></td><td class="o" id="h12"></td></tr>
+                           <tr><td class="o" id="h21"></td><td class="o" id="h22"></td></tr>
+                           <tr><td class="o" id="h31"></td><td class="o" id="h32"></td></tr></table>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:4px">误差矩阵</div>
+          <table class="m"><tr><td class="bad" id="e11"></td><td class="bad" id="e12"></td></tr>
+                           <tr><td class="bad" id="e21"></td><td class="bad" id="e22"></td></tr>
+                           <tr><td class="bad" id="e31"></td><td class="bad" id="e32"></td></tr></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD", neutral: "#9AA6B6",
+            light: "#E7ECF3", bad: "#D64545" };
+  var NS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("pic");
+
+  // 圆形图案的奇异值分解（由图案本身算出，只取 4 个非零奇异值对应的部分）
+  var DISK = {"U":[[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[-0.134023,-0.455079,0.471499,-0.229412],[-0.257354,-0.341776,-0.137379,0.545972],[-0.308754,-0.071689,-0.284425,-0.261982],[-0.308754,-0.071689,-0.284425,-0.261982],[-0.335521,0.287935,0.220251,0.077512],[-0.335521,0.287935,0.220251,0.077512],[-0.335521,0.287935,0.220251,0.077512],[-0.335521,0.287935,0.220251,0.077512],[-0.308754,-0.071689,-0.284425,-0.261982],[-0.308754,-0.071689,-0.284425,-0.261982],[-0.257354,-0.341776,-0.137379,0.545972],[-0.134023,-0.455079,0.471499,-0.229412],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0]],
+    "s":[10.013833,2.530859,1.86852,1.351494],
+    "V":[[-0.0,0.0,-0.0,-0.0],[-0.0,0.0,-0.0,-0.0],[-0.134023,0.455079,0.471499,0.229412],[-0.257354,0.341776,-0.137379,-0.545972],[-0.308754,0.071689,-0.284425,0.261982],[-0.308754,0.071689,-0.284425,0.261982],[-0.335521,-0.287935,0.220251,-0.077512],[-0.335521,-0.287935,0.220251,-0.077512],[-0.335521,-0.287935,0.220251,-0.077512],[-0.335521,-0.287935,0.220251,-0.077512],[-0.308754,0.071689,-0.284425,0.261982],[-0.308754,0.071689,-0.284425,0.261982],[-0.257354,0.341776,-0.137379,-0.545972],[-0.134023,0.455079,0.471499,0.229412],[-0.0,0.0,-0.0,-0.0],[-0.0,0.0,-0.0,-0.0]]};
+  var R2 = Math.sqrt(2);
+  var HMAT = {
+    U: [[1 / (3 * R2), -1 / R2], [1 / (3 * R2), 1 / R2], [4 / (3 * R2), 0]],
+    s: [3, 1],
+    V: [[1 / R2, -1 / R2], [1 / R2, 1 / R2]]
+  };
+  var mode = "disk";
+
+  function diskMatrix() {
+    var M = [];
+    for (var i = 0; i < 16; i++) {
+      var row = [];
+      for (var j = 0; j < 16; j++) {
+        row.push((i - 7.5) * (i - 7.5) + (j - 7.5) * (j - 7.5) <= 36 ? 1 : 0);
+      }
+      M.push(row);
+    }
+    return M;
+  }
+  function hMatrix() { return [[1, 0], [0, 1], [2, 2]]; }
+
+  function partial(D, k) {
+    var m = D.U.length, n = D.V.length;
+    var M = [];
+    for (var i = 0; i < m; i++) {
+      var row = [];
+      for (var j = 0; j < n; j++) {
+        var v = 0;
+        for (var t = 0; t < k; t++) v += D.s[t] * D.U[i][t] * D.V[j][t];
+        row.push(v);
+      }
+      M.push(row);
+    }
+    return M;
+  }
+  function fnorm(M) {
+    var s = 0;
+    for (var i = 0; i < M.length; i++) for (var j = 0; j < M[0].length; j++) s += M[i][j] * M[i][j];
+    return Math.sqrt(s);
+  }
+  function diff(A, B) {
+    var M = [];
+    for (var i = 0; i < A.length; i++) {
+      var row = [];
+      for (var j = 0; j < A[0].length; j++) row.push(A[i][j] - B[i][j]);
+      M.push(row);
+    }
+    return M;
+  }
+  function fmt(v, n) {
+    var s = (Math.abs(v) < 5e-5 ? 0 : v).toFixed(n === undefined ? 4 : n);
+    return s.replace("-", "−");
+  }
+
+  function el(tag, at) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in at) e.setAttribute(k, at[k]);
+    return e;
+  }
+  function drawGrid(M) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var rows = M.length, cols = M[0].length;
+    var cell = Math.min(480 / cols, 480 / rows);
+    var x0 = (520 - cols * cell) / 2, y0 = (520 - rows * cell) / 2;
+    for (var i = 0; i < rows; i++) {
+      for (var j = 0; j < cols; j++) {
+        var t = Math.min(1, Math.max(0, M[i][j]));
+        var g = Math.round(255 * (1 - t));
+        svg.appendChild(el("rect", { x: x0 + j * cell, y: y0 + i * cell, width: cell, height: cell,
+          fill: "rgb(" + g + "," + g + "," + g + ")" }));
+        if (cols <= 4) {
+          var e = el("text", { x: x0 + j * cell + cell / 2, y: y0 + i * cell + cell / 2 + 6,
+            "font-size": 22, "font-family": "Cambria Math, serif", "text-anchor": "middle",
+            fill: t > 0.55 ? "#fff" : "#1F2937" });
+          e.textContent = fmt(M[i][j], 2);
+          svg.appendChild(e);
+        }
+      }
+    }
+    for (var i2 = 0; i2 <= rows; i2++) {
+      svg.appendChild(el("line", { x1: x0, y1: y0 + i2 * cell, x2: x0 + cols * cell,
+        y2: y0 + i2 * cell, stroke: C.light, "stroke-width": 1 }));
+    }
+    for (var j2 = 0; j2 <= cols; j2++) {
+      svg.appendChild(el("line", { x1: x0 + j2 * cell, y1: y0, x2: x0 + j2 * cell,
+        y2: y0 + rows * cell, stroke: C.light, "stroke-width": 1 }));
+    }
+    svg.appendChild(el("rect", { x: x0, y: y0, width: cols * cell, height: rows * cell,
+      fill: "none", stroke: C.neutral, "stroke-width": 1.4 }));
+  }
+
+  function update() {
+    var D = mode === "disk" ? DISK : HMAT;
+    var orig = mode === "disk" ? diskMatrix() : hMatrix();
+    var kmax = D.s.length;
+    var slider = document.getElementById("k");
+    slider.max = kmax;
+    var k = Math.min(+slider.value, kmax);
+    slider.value = k;
+    var Mk = partial(D, k);
+    var E = diff(orig, Mk);
+    drawGrid(mode === "disk" ? Mk : Mk);
+
+    document.getElementById("kv").textContent = k;
+    document.getElementById("rank").textContent = k;
+    var txt = [];
+    for (var t = 0; t < kmax; t++) {
+      txt.push((t < k ? "留 " : "丢 ") + "σ" + "₁₂₃₄"[t] + " = " + fmt(D.s[t]));
+    }
+    document.getElementById("sigmas").innerHTML = txt.join("<br>");
+    var f = fnorm(orig);
+    document.getElementById("fnorm").textContent = fmt(f);
+    document.getElementById("fsq").textContent = fmt(f * f);
+    var e = fnorm(E);
+    document.getElementById("err").textContent = fmt(e);
+    document.getElementById("errsq").textContent = fmt(e * e, 3);
+    var drop = 0;
+    for (var t2 = k; t2 < kmax; t2++) drop += D.s[t2] * D.s[t2];
+    document.getElementById("dropsq").textContent = fmt(drop, 3);
+    document.getElementById("same").textContent =
+      Math.abs(drop - e * e) < 1e-3 * Math.max(1, drop) ? "是" : "否";
+    var m = orig.length, n = orig[0].length;
+    document.getElementById("full").textContent = (m * n) + " 个数";
+    document.getElementById("comp").textContent = (k * (m + n + 1)) + " 个数";
+    document.getElementById("per").textContent = m + " + " + n + " + 1 = " + (m + n + 1) + " 个数";
+
+    document.getElementById("hcard").style.display = mode === "H" ? "" : "none";
+    if (mode === "H") {
+      var ids = [["h11", 0, 0], ["h12", 0, 1], ["h21", 1, 0], ["h22", 1, 1], ["h31", 2, 0], ["h32", 2, 1]];
+      ids.forEach(function (r) { document.getElementById(r[0]).textContent = fmt(Mk[r[1]][r[2]], 2); });
+      var ids2 = [["e11", 0, 0], ["e12", 0, 1], ["e21", 1, 0], ["e22", 1, 1], ["e31", 2, 0], ["e32", 2, 1]];
+      ids2.forEach(function (r) { document.getElementById(r[0]).textContent = fmt(E[r[1]][r[2]], 2); });
+    }
+  }
+
+  document.getElementById("k").addEventListener("input", update);
+  document.getElementById("mDisk").onclick = function () {
+    mode = "disk";
+    this.className = "on";
+    document.getElementById("mH").className = "";
+    document.getElementById("k").value = 1;
+    update();
+  };
+  document.getElementById("mH").onclick = function () {
+    mode = "H";
+    this.className = "on";
+    document.getElementById("mDisk").className = "";
+    document.getElementById("k").value = 1;
+    update();
+  };
+  update();
+})();
+</script>
+</body>
+</html>

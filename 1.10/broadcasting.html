@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>广播</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 8px; color: #5b6573; font-weight: normal; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; max-width: 640px; }
+  .left { flex: 1; min-width: 470px; }
+  .panel { flex: 1; min-width: 380px; max-width: 540px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 10px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 19px; font-weight: bold; }
+  button { font: inherit; padding: 5px 11px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  button.sel { background: var(--light); border-color: var(--text); }
+  input[type=text] { font: inherit; width: 110px; padding: 4px 6px; border: 1px solid var(--neutral);
+                     border-radius: 5px; font-family: "Cambria Math", serif; }
+  table.k { border-collapse: collapse; width: 100%; font-size: 14px; }
+  table.k th, table.k td { border: 1px solid var(--light); padding: 5px 8px; text-align: center; }
+  table.k th { background: var(--light); font-weight: normal; color: #5b6573; }
+  table.t { border-collapse: collapse; }
+  table.t td { width: 48px; height: 32px; text-align: center; border: 1px solid var(--neutral);
+               font-family: "Cambria Math", serif; font-size: 15px; cursor: pointer; }
+  table.t td.on { background: var(--state); color: #fff; font-weight: bold; }
+  .layers { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .cap { font-size: 12px; color: var(--neutral); margin-bottom: 4px; text-align: center; }
+  .q { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .qc { text-align: center; }
+  .qv { min-width: 40px; height: 28px; line-height: 28px; padding: 0 4px;
+        border: 1px solid var(--neutral); font-family: "Cambria Math", serif; font-size: 14px; border-radius: 3px; }
+  .qv.on { background: var(--state); color: #fff; font-weight: bold; }
+  .qi { font-size: 11px; color: var(--neutral); font-family: "Cambria Math", serif; }
+  .ok { color: var(--good); } .no { color: var(--bad); }
+  .a { color: var(--comp1); } .b { color: var(--comp2); } .o { color: var(--output); }
+</style>
+</head>
+<body>
+<main>
+  <div class="left">
+    <h1>广播</h1>
+    <p class="hint">左边一个张量，右边一个张量，两个形状都可以改（用逗号隔开，最多三个轴；结果不超过 160 个数）。
+      左边的数依次是 1、2、3、…，右边的数依次是 10、20、30、…，这样一眼就能看出结果里的每个数是从哪儿来的。
+      点结果里的任意一个格子，右边会给出它在两边各自的线性索引。轴的编号和轴上的位置都从 0 数起。</p>
+    <div class="card">
+      <div class="row">
+        <span><span class="label a">左边的形状</span> <input type="text" id="sa" value="4,1"></span>
+        <span><span class="label b">右边的形状</span> <input type="text" id="sb" value="2"></span>
+      </div>
+      <div style="margin-top:8px">
+        <button data-a="4,1" data-b="2">(4, 1) 和 (2,)</button>
+        <button data-a="3,4,2" data-b="2">(3, 4, 2) 和 (2,)　加偏置</button>
+        <button data-a="3,4,2" data-b="1,3,1">(3, 4, 2) 和 (1, 3, 1)　对不上</button>
+        <button data-a="4,1" data-b="4">(4, 1) 和 (4,)　多一个轴的陷阱</button>
+        <button data-a="4,1" data-b="1,2">(4, 1) 和 (1, 2)　换成相乘就是外积</button>
+      </div>
+      <div style="margin-top:8px">
+        <span class="label">运算</span>
+        <button id="opAdd" class="sel">逐元素相加</button>
+        <button id="opMul">逐元素相乘</button>
+      </div>
+      <div id="err" class="no" style="margin-top:8px;font-size:13px"></div>
+    </div>
+    <div class="card">
+      <h2>两边的数，以及它们底层的一维排列</h2>
+      <div class="row"><span class="label a">左边</span><span class="num" id="qaShape"></span></div>
+      <div class="q" id="qa"></div>
+      <div class="row" style="margin-top:8px"><span class="label b">右边</span><span class="num" id="qbShape"></span></div>
+      <div class="q" id="qb"></div>
+    </div>
+    <div class="card">
+      <h2>结果</h2>
+      <div class="layers" id="res"></div>
+      <div id="resNote" style="margin-top:8px;font-size:13px"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <h2>第一步：右对齐，轴少的一边在左边补 1</h2>
+      <div class="row"><span class="label a">左边补齐后</span><span class="num big a" id="pa"></span></div>
+      <div class="row"><span class="label b">右边补齐后</span><span class="num big b" id="pb"></span></div>
+    </div>
+    <div class="card">
+      <h2>第二步：逐个轴检查　第三步：取大的那个</h2>
+      <table class="k" id="check"></table>
+      <div class="row" style="margin-top:8px"><span class="label">结果形状</span>
+        <span class="num big o" id="rshape"></span></div>
+      <div class="row"><span class="label">结果一共有多少个数</span><span class="num o" id="rcount"></span></div>
+    </div>
+    <div class="card">
+      <h2>拉伸后的步长：被拉伸的轴改成 0</h2>
+      <div class="row"><span class="label a">左边补齐后的步长</span><span class="num a" id="stA0"></span></div>
+      <div class="row"><span class="label a">左边拉伸后的步长</span><span class="num big a" id="stA"></span></div>
+      <div class="row"><span class="label b">右边补齐后的步长</span><span class="num b" id="stB0"></span></div>
+      <div class="row"><span class="label b">右边拉伸后的步长</span><span class="num big b" id="stB"></span></div>
+    </div>
+    <div class="card">
+      <h2>选中的那个格子</h2>
+      <div class="row"><span class="label">结果里的下标</span><span class="num big" id="ridx"></span></div>
+      <div class="row"><span class="label a">左边的线性索引</span><span class="num a" id="fa"></span></div>
+      <div class="row"><span class="label b">右边的线性索引</span><span class="num b" id="fb"></span></div>
+      <div class="row"><span class="label">取到的两个数和结果</span><span class="num big o" id="fv"></span></div>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var op = "add";
+  var sel = null;
+
+  function parseShape(s) {
+    var parts = s.split(/[,，\s]+/).filter(function (x) { return x.length > 0; });
+    if (parts.length === 0 || parts.length > 3) return null;
+    var out = [], i, v;
+    for (i = 0; i < parts.length; i++) {
+      v = parseInt(parts[i], 10);
+      if (!(v >= 1) || String(v) !== parts[i]) return null;
+      out.push(v);
+    }
+    return out;
+  }
+  function fmt(a) { return "(" + a.join(", ") + (a.length === 1 ? "," : "") + ")"; }
+  function contigStrides(shape) {
+    var s = new Array(shape.length), acc = 1, k;
+    for (k = shape.length - 1; k >= 0; k--) { s[k] = acc; acc *= shape[k]; }
+    return s;
+  }
+  function pad(shape, n) {
+    var out = shape.slice();
+    while (out.length < n) out.unshift(1);
+    return out;
+  }
+  function allIndex(shape) {
+    var out = [[]], k, next, i, j;
+    for (k = 0; k < shape.length; k++) {
+      next = [];
+      for (i = 0; i < out.length; i++) for (j = 0; j < shape[k]; j++) next.push(out[i].concat([j]));
+      out = next;
+    }
+    return out;
+  }
+  function dot(idx, strides) {
+    var p = 0, k;
+    for (k = 0; k < idx.length; k++) p += idx[k] * strides[k];
+    return p;
+  }
+
+  function render() {
+    var d = document;
+    var A = parseShape(d.getElementById("sa").value);
+    var B = parseShape(d.getElementById("sb").value);
+    var err = d.getElementById("err");
+    function clearAll() {
+      ["pa", "pb", "rshape", "rcount", "stA0", "stA", "stB0", "stB",
+       "qaShape", "qbShape", "ridx", "fa", "fb", "fv"].forEach(function (k) {
+        d.getElementById(k).textContent = "\u2014";
+      });
+      ["qa", "qb", "res", "check"].forEach(function (k) { d.getElementById(k).innerHTML = ""; });
+      d.getElementById("resNote").textContent = "";
+    }
+    if (!A || !B) {
+      err.textContent = "形状要写成 1 到 3 个正整数，用逗号隔开。";
+      clearAll();
+      return;
+    }
+    err.textContent = "";
+    var n = Math.max(A.length, B.length);
+    var pA = pad(A, n), pB = pad(B, n);
+    var cap = 1, m;
+    for (m = 0; m < n; m++) cap *= Math.max(pA[m], pB[m]);
+    if (cap > 160) {
+      err.textContent = "结果一共会有 " + cap + " 个数，太多了画不下；请把形状改小一些（不超过 160 个数）。";
+      clearAll();
+      return;
+    }
+    d.getElementById("pa").textContent = fmt(pA);
+    d.getElementById("pb").textContent = fmt(pB);
+
+    // 逐轴检查
+    var R = [], okAll = true, bad = -1, k;
+    for (k = 0; k < n; k++) {
+      if (pA[k] === pB[k]) R.push(pA[k]);
+      else if (pA[k] === 1) R.push(pB[k]);
+      else if (pB[k] === 1) R.push(pA[k]);
+      else { R.push(null); if (okAll) { okAll = false; bad = k; } }
+    }
+    var tab = d.getElementById("check");
+    var html = "<tr><th>轴</th><th>左边</th><th>右边</th><th>能不能对上</th><th>结果</th></tr>";
+    for (k = 0; k < n; k++) {
+      var good = R[k] !== null;
+      html += "<tr><td>" + k + "</td><td class='a'>" + pA[k] + "</td><td class='b'>" + pB[k] + "</td>"
+        + "<td class='" + (good ? "ok" : "no") + "'>"
+        + (good ? (pA[k] === pB[k] ? "相等" : "有一个是 1") : "既不相等，也没有一个是 1") + "</td>"
+        + "<td class='o'>" + (good ? R[k] : "—") + "</td></tr>";
+    }
+    tab.innerHTML = html;
+
+    var valsA = [], valsB = [], t;
+    var nA = A.reduce(function (a, b) { return a * b; }, 1);
+    var nB = B.reduce(function (a, b) { return a * b; }, 1);
+    for (t = 0; t < nA; t++) valsA.push(t + 1);
+    for (t = 0; t < nB; t++) valsB.push(10 * (t + 1));
+
+    var stA0 = contigStrides(pA), stB0 = contigStrides(pB);
+    var stA = stA0.slice(), stB = stB0.slice();
+    for (k = 0; k < n; k++) {
+      if (R[k] !== null && pA[k] === 1 && R[k] !== 1) stA[k] = 0;
+      if (R[k] !== null && pB[k] === 1 && R[k] !== 1) stB[k] = 0;
+    }
+    d.getElementById("stA0").textContent = fmt(stA0);
+    d.getElementById("stB0").textContent = fmt(stB0);
+    d.getElementById("stA").textContent = okAll ? fmt(stA) : "—";
+    d.getElementById("stB").textContent = okAll ? fmt(stB) : "—";
+
+    d.getElementById("qaShape").textContent = fmt(A) + "，" + nA + " 个数";
+    d.getElementById("qbShape").textContent = fmt(B) + "，" + nB + " 个数";
+    var selA = -1, selB = -1;
+    if (okAll && sel && sel.length === n) { selA = dot(sel, stA); selB = dot(sel, stB); }
+    function drawQ(id, vals, mark) {
+      var box = d.getElementById(id); box.innerHTML = "";
+      vals.forEach(function (v, i) {
+        var wrap = d.createElement("div"); wrap.className = "qc";
+        var c = d.createElement("div");
+        c.className = i === mark ? "qv on" : "qv";
+        c.textContent = v;
+        var tag = d.createElement("div"); tag.className = "qi"; tag.textContent = i;
+        wrap.appendChild(c); wrap.appendChild(tag);
+        box.appendChild(wrap);
+      });
+    }
+    drawQ("qa", valsA, selA);
+    drawQ("qb", valsB, selB);
+
+    var res = d.getElementById("res"); res.innerHTML = "";
+    var note = d.getElementById("resNote");
+    if (!okAll) {
+      d.getElementById("rshape").textContent = "不能广播";
+      d.getElementById("rcount").textContent = "—";
+      note.innerHTML = "<span class='no'>卡在轴 " + bad + "：左边是 " + pA[bad] + "，右边是 "
+        + pB[bad] + "，既不相等，也没有一个是 1，所以这两个形状对不上。</span>";
+      d.getElementById("ridx").textContent = "—";
+      d.getElementById("fa").textContent = "—";
+      d.getElementById("fb").textContent = "—";
+      d.getElementById("fv").textContent = "—";
+      return;
+    }
+    var total = R.reduce(function (a, b) { return a * b; }, 1);
+    d.getElementById("rshape").textContent = fmt(R);
+    d.getElementById("rcount").textContent = total;
+    note.innerHTML = "左边的 " + nA + " 个数和右边的 " + nB + " 个数，一个也没有复制："
+      + "被拉伸的轴步长取 0，走多少步都停在原地。";
+
+    function value(idx) {
+      var a = valsA[dot(idx, stA)], b = valsB[dot(idx, stB)];
+      return op === "add" ? a + b : a * b;
+    }
+    var nd = R.length;
+    var outer = nd === 3 ? R[0] : 1;
+    for (k = 0; k < outer; k++) {
+      var box = d.createElement("div");
+      var capEl = d.createElement("div"); capEl.className = "cap";
+      capEl.textContent = nd === 3 ? ("轴 0 的下标 " + k) : (nd === 1 ? "只有一个轴" : "一张表");
+      box.appendChild(capEl);
+      var rows = nd === 1 ? 1 : R[nd - 2];
+      var cols = R[nd - 1];
+      var tb = d.createElement("table"); tb.className = "t";
+      var i, j;
+      for (i = 0; i < rows; i++) {
+        var tr = d.createElement("tr");
+        for (j = 0; j < cols; j++) {
+          var idx = nd === 3 ? [k, i, j] : (nd === 2 ? [i, j] : [j]);
+          var td = d.createElement("td");
+          td.textContent = value(idx);
+          if (sel && sel.join(",") === idx.join(",")) td.className = "on";
+          (function (idx) { td.onclick = function () { sel = idx; render(); }; })(idx);
+          tr.appendChild(td);
+        }
+        tb.appendChild(tr);
+      }
+      box.appendChild(tb);
+      res.appendChild(box);
+    }
+
+    if (sel && sel.length === n) {
+      var ta = sel.map(function (v, m) { return stA[m] + " × " + v; }).join(" + ");
+      var tbf = sel.map(function (v, m) { return stB[m] + " × " + v; }).join(" + ");
+      d.getElementById("ridx").textContent = fmt(sel);
+      d.getElementById("fa").textContent = ta + " = " + selA;
+      d.getElementById("fb").textContent = tbf + " = " + selB;
+      d.getElementById("fv").textContent = valsA[selA] + (op === "add" ? " + " : " × ")
+        + valsB[selB] + " = " + value(sel);
+    } else {
+      d.getElementById("ridx").textContent = "（点结果里的一个格子）";
+      d.getElementById("fa").textContent = "—";
+      d.getElementById("fb").textContent = "—";
+      d.getElementById("fv").textContent = "—";
+    }
+  }
+
+  document.getElementById("sa").oninput = function () { sel = null; render(); };
+  document.getElementById("sb").oninput = function () { sel = null; render(); };
+  Array.prototype.forEach.call(document.querySelectorAll("button[data-a]"), function (btn) {
+    btn.onclick = function () {
+      document.getElementById("sa").value = btn.getAttribute("data-a");
+      document.getElementById("sb").value = btn.getAttribute("data-b");
+      sel = null; render();
+    };
+  });
+  document.getElementById("opAdd").onclick = function () {
+    op = "add";
+    this.className = "sel"; document.getElementById("opMul").className = "";
+    render();
+  };
+  document.getElementById("opMul").onclick = function () {
+    op = "mul";
+    this.className = "sel"; document.getElementById("opAdd").className = "";
+    render();
+  };
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>有向面积</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; touch-action: none; user-select: none; }
+  .panel { flex: 1; min-width: 340px; max-width: 500px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 8px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 22px; font-weight: bold; }
+  .c1 { color: var(--comp1); } .c2 { color: var(--comp2); } .o { color: var(--output); }
+  .good { color: var(--good); } .bad { color: var(--bad); } .st { color: #b7860b; }
+  button { font: inherit; padding: 4px 10px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  table.m { border-collapse: collapse; font-family: "Cambria Math", serif; font-size: 20px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); }
+  table.m td { padding: 4px 14px; text-align: center; }
+  math { font-size: 17px; }
+  #log { font-family: "Cambria Math", serif; font-size: 15px; margin: 6px 0 0; padding-left: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>有向面积</h1>
+    <p class="hint">拖动橙色圆点（第一列 p）和青色圆点（第二列 q）。琥珀色是 p、q 围成的平行四边形，紫色弧线从 p 转到 q。</p>
+    <svg id="plane" width="600" height="600" viewBox="0 0 600 600"></svg>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div>预设：
+        <button data-p="A">A = [3 2; 1 2]</button>
+        <button data-p="swap">[2 3; 2 1]</button>
+        <button data-p="refl">反射</button>
+        <button data-p="rot">旋转 90°</button>
+        <button data-p="flat">[1 2; 2 4]</button>
+      </div>
+      <div style="margin-top:6px"><label><input type="checkbox" id="circ"> 显示单位圆变换后的图形</label></div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label">矩阵（两列是 p、q）</span>
+        <table class="m"><tr><td class="c1" id="m11"></td><td class="c2" id="m12"></td></tr>
+                         <tr><td class="c1" id="m21"></td><td class="c2" id="m22"></td></tr></table></div>
+      <math display="block"><mrow><mo>det</mo><mo>=</mo><msub><mi>p</mi><mn>1</mn></msub><msub><mi>q</mi><mn>2</mn></msub>
+        <mo>−</mo><msub><mi>p</mi><mn>2</mn></msub><msub><mi>q</mi><mn>1</mn></msub></mrow></math>
+      <div class="num" id="formula" style="margin:4px 0 8px"></div>
+      <div class="row"><span class="label">平行四边形的面积</span><span class="num st big" id="area"></span></div>
+      <div class="row"><span class="label">从 p 转到 q</span><span id="dir"></span></div>
+      <div class="row"><span class="label">行列式（有向面积）</span><span class="num o big" id="det"></span></div>
+    </div>
+    <div class="card">
+      <div class="label">剪切：把一列加上另一列的倍数，有向面积不变</div>
+      <div style="margin-top:6px">
+        <button id="s1">q 换成 q − (q₁ / p₁) p</button>
+        <button id="s2">p 换成 p − (p₂ / q₂) q</button>
+        <button id="undo">回到剪切前</button>
+      </div>
+      <ol id="log"></ol>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD", state: "#E9A913",
+            neutral: "#9AA6B6", light: "#E7ECF3", input: "#2F6FE0" };
+  var SIZE = 600, UNIT = 50, O = SIZE / 2, RANGE = 6;
+  var NS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("plane");
+  var st = { p: [3, 1], q: [2, 2], drag: null, saved: null };
+  var PRE = { A: [[3, 1], [2, 2]], swap: [[2, 2], [3, 1]], refl: [[1, 0], [0, -1]],
+              rot: [[0, 1], [-1, 0]], flat: [[1, 2], [2, 4]] };
+
+  function px(x, y) { return [O + UNIT * x, O - UNIT * y]; }
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || svg).appendChild(e);
+    return e;
+  }
+  function fmt(v) {
+    if (Math.abs(v) < 1e-9) v = 0;
+    var s = v.toFixed(2);
+    if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    return s.replace("-", "−");
+  }
+  function par(v) { return v < -1e-9 ? "(" + fmt(v) + ")" : fmt(v); }
+
+  for (var i = -RANGE; i <= RANGE; i++) {
+    var a = px(i, -RANGE), b = px(i, RANGE), c = px(-RANGE, i), d = px(RANGE, i);
+    el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: i ? C.light : C.neutral, "stroke-width": i ? 1 : 1.5 });
+    el("line", { x1: c[0], y1: c[1], x2: d[0], y2: d[1], stroke: i ? C.light : C.neutral, "stroke-width": i ? 1 : 1.5 });
+  }
+  var sq = [px(0, 0), px(1, 0), px(1, 1), px(0, 1)];
+  el("polygon", { points: sq.map(function (p) { return p.join(","); }).join(" "), fill: "none",
+                  stroke: C.neutral, "stroke-dasharray": "5 4" });
+  var ell = el("polygon", { fill: C.input, "fill-opacity": 0.12, stroke: C.input, "stroke-width": 1.4 });
+  var para = el("polygon", { fill: C.state, "fill-opacity": 0.3, stroke: C.state, "stroke-width": 1.5 });
+  var arc = el("path", { fill: "none", stroke: C.output, "stroke-width": 2 });
+  var arcHead = el("polygon", { fill: C.output });
+  function arrow(color) {
+    var g = el("g", {});
+    return { line: el("line", { stroke: color, "stroke-width": 3 }, g), head: el("polygon", { fill: color }, g), g: g };
+  }
+  function drawArrow(ar, v) {
+    var s = px(0, 0), e = px(v[0], v[1]);
+    var len = Math.hypot(e[0] - s[0], e[1] - s[1]);
+    ar.g.style.display = len < 2 ? "none" : "";
+    if (len < 2) return;
+    var an = Math.atan2(e[1] - s[1], e[0] - s[0]), hl = Math.min(12, len * 0.6);
+    ar.line.setAttribute("x1", s[0]); ar.line.setAttribute("y1", s[1]);
+    ar.line.setAttribute("x2", e[0] - hl * Math.cos(an)); ar.line.setAttribute("y2", e[1] - hl * Math.sin(an));
+    ar.head.setAttribute("points", [[e[0], e[1]], [e[0] + hl * Math.cos(an + 2.7), e[1] + hl * Math.sin(an + 2.7)],
+      [e[0] + hl * Math.cos(an - 2.7), e[1] + hl * Math.sin(an - 2.7)]].map(function (p) { return p.join(","); }).join(" "));
+  }
+  var AP = arrow(C.comp1), AQ = arrow(C.comp2);
+  function vecLabel(color) {
+    var g = el("g", { fill: color, stroke: color, "font-family": "Cambria Math, serif" });
+    var left = el("path", { fill: "none", "stroke-width": 1.4 }, g);
+    var right = el("path", { fill: "none", "stroke-width": 1.4 }, g);
+    var t1 = el("text", { "font-size": 18 }, g);
+    var t2 = el("text", { "font-size": 18 }, g);
+    var name = el("text", { "font-size": 14, "font-weight": "bold" }, g);
+    return { g: g, left: left, right: right, t1: t1, t2: t2, name: name };
+  }
+  function setVecLabel(L, x, y, comps, txt) {
+    var w = 40, h = 44;
+    L.g.setAttribute("transform", "translate(" + x + "," + y + ")");
+    L.left.setAttribute("d", "M 4 0 L 0 0 L 0 " + h + " L 4 " + h);
+    L.right.setAttribute("d", "M " + (w - 4) + " 0 L " + w + " 0 L " + w + " " + h + " L " + (w - 4) + " " + h);
+    L.t1.setAttribute("x", 9); L.t1.setAttribute("y", 18); L.t1.textContent = fmt(comps[0]);
+    L.t2.setAttribute("x", 9); L.t2.setAttribute("y", 40); L.t2.textContent = fmt(comps[1]);
+    L.name.setAttribute("x", 0); L.name.setAttribute("y", -7); L.name.textContent = txt;
+  }
+  var LP = vecLabel(C.comp1), LQ = vecLabel(C.comp2);
+  function handle(color, which) {
+    return el("circle", { r: 10, fill: color, "fill-opacity": 0.25, stroke: color, "stroke-width": 1.5,
+                          style: "cursor:grab", "data-which": which });
+  }
+  var HP = handle(C.comp1, "p"), HQ = handle(C.comp2, "q");
+
+  function det() { return st.p[0] * st.q[1] - st.p[1] * st.q[0]; }
+
+  function drawArc() {
+    var a0 = Math.atan2(st.p[1], st.p[0]), a1 = Math.atan2(st.q[1], st.q[0]);
+    var d = a1 - a0;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    var D = det();
+    if (Math.abs(D) < 1e-9 || Math.hypot(st.p[0], st.p[1]) < 1e-9 || Math.hypot(st.q[0], st.q[1]) < 1e-9) {
+      arc.setAttribute("d", ""); arcHead.setAttribute("points", ""); return;
+    }
+    var r = Math.min(1.2, 0.45 * Math.min(Math.hypot(st.p[0], st.p[1]), Math.hypot(st.q[0], st.q[1])));
+    var pts = [];
+    for (var k = 0; k <= 30; k++) {
+      var t = a0 + d * k / 30;
+      pts.push(px(r * Math.cos(t), r * Math.sin(t)));
+    }
+    arc.setAttribute("d", "M " + pts.slice(0, 28).map(function (p) { return p.join(" "); }).join(" L "));
+    var e = pts[30], s = pts[27], an = Math.atan2(e[1] - s[1], e[0] - s[0]);
+    arcHead.setAttribute("points", [[e[0], e[1]], [e[0] + 9 * Math.cos(an + 2.7), e[1] + 9 * Math.sin(an + 2.7)],
+      [e[0] + 9 * Math.cos(an - 2.7), e[1] + 9 * Math.sin(an - 2.7)]].map(function (p) { return p.join(","); }).join(" "));
+  }
+
+  function render() {
+    var p = st.p, q = st.q;
+    var pts = [[0, 0], p, [p[0] + q[0], p[1] + q[1]], q].map(function (v) { return px(v[0], v[1]).join(","); });
+    para.setAttribute("points", pts.join(" "));
+    drawArrow(AP, p); drawArrow(AQ, q);
+    var hp = px(p[0], p[1]), hq = px(q[0], q[1]);
+    HP.setAttribute("cx", hp[0]); HP.setAttribute("cy", hp[1]);
+    HQ.setAttribute("cx", hq[0]); HQ.setAttribute("cy", hq[1]);
+    setVecLabel(LP, hp[0] + 14, hp[1] - 4, p, "p");
+    setVecLabel(LQ, hq[0] + 14, hq[1] - 62, q, "q");
+    drawArc();
+    var show = document.getElementById("circ").checked;
+    var ep = [];
+    for (var k = 0; k < 90; k++) {
+      var t = 2 * Math.PI * k / 90, x = Math.cos(t), y = Math.sin(t);
+      ep.push(px(p[0] * x + q[0] * y, p[1] * x + q[1] * y).join(","));
+    }
+    ell.setAttribute("points", ep.join(" "));
+    ell.style.display = show ? "" : "none";
+    document.getElementById("m11").textContent = fmt(p[0]);
+    document.getElementById("m21").textContent = fmt(p[1]);
+    document.getElementById("m12").textContent = fmt(q[0]);
+    document.getElementById("m22").textContent = fmt(q[1]);
+    var D = det();
+    document.getElementById("formula").innerHTML = par(p[0]) + " × " + par(q[1]) + " − " + par(p[1]) + " × " + par(q[0]) + " = " + fmt(D);
+    document.getElementById("area").textContent = fmt(Math.abs(D)) + (show ? "（圆变成的图形面积 " + fmt(Math.abs(D)) + "π）" : "");
+    var dir = document.getElementById("dir");
+    if (Math.abs(D) < 1e-9) { dir.textContent = "共线，面积为 0"; dir.className = "label"; }
+    else if (D > 0) { dir.textContent = "逆时针：取正号"; dir.className = "good"; }
+    else { dir.textContent = "顺时针：取负号"; dir.className = "bad"; }
+    document.getElementById("det").textContent = fmt(D);
+  }
+
+  function snap(v) { return Math.round(v * 2) / 2; }
+  function toMath(evt) {
+    var r = svg.getBoundingClientRect();
+    var x = (evt.clientX - r.left) * SIZE / r.width, y = (evt.clientY - r.top) * SIZE / r.height;
+    return [Math.max(-RANGE, Math.min(RANGE, snap((x - O) / UNIT))), Math.max(-RANGE, Math.min(RANGE, snap((O - y) / UNIT)))];
+  }
+  svg.addEventListener("pointerdown", function (e) {
+    var w = e.target.getAttribute && e.target.getAttribute("data-which");
+    if (w) { st.drag = w; svg.setPointerCapture(e.pointerId); }
+  });
+  svg.addEventListener("pointermove", function (e) {
+    if (!st.drag) return;
+    st[st.drag] = toMath(e); st.saved = null; clearLog(); render();
+  });
+  svg.addEventListener("pointerup", function () { st.drag = null; });
+
+  var log = document.getElementById("log");
+  function clearLog() { log.innerHTML = ""; }
+  function addLog(t) { var li = document.createElement("li"); li.textContent = t; log.appendChild(li); }
+  function save() { if (!st.saved) st.saved = { p: st.p.slice(), q: st.q.slice() }; }
+  document.getElementById("s1").onclick = function () {
+    if (Math.abs(st.p[0]) < 1e-9) { addLog("p₁ = 0，不能除；可以先把 p 换成 p + q"); return; }
+    save();
+    var c = st.q[0] / st.p[0];
+    st.q = [st.q[0] - c * st.p[0], st.q[1] - c * st.p[1]];
+    addLog("q 减去 " + fmt(c) + " × p，q = (" + fmt(st.q[0]) + ", " + fmt(st.q[1]) + ")，行列式 " + fmt(det()));
+    render();
+  };
+  document.getElementById("s2").onclick = function () {
+    if (Math.abs(st.q[1]) < 1e-9) { addLog("q₂ = 0，不能除"); return; }
+    save();
+    var c = st.p[1] / st.q[1];
+    st.p = [st.p[0] - c * st.q[0], st.p[1] - c * st.q[1]];
+    addLog("p 减去 " + fmt(c) + " × q，p = (" + fmt(st.p[0]) + ", " + fmt(st.p[1]) + ")，行列式 " + fmt(det()));
+    render();
+  };
+  document.getElementById("undo").onclick = function () {
+    if (st.saved) { st.p = st.saved.p; st.q = st.saved.q; st.saved = null; }
+    clearLog(); render();
+  };
+  Array.prototype.forEach.call(document.querySelectorAll("button[data-p]"), function (b) {
+    b.onclick = function () {
+      var v = PRE[b.getAttribute("data-p")];
+      st.p = v[0].slice(); st.q = v[1].slice(); st.saved = null; clearLog(); render();
+    };
+  });
+  document.getElementById("circ").onchange = render;
+  render();
+})();
+</script>
+</body>
+</html>

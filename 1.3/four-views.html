@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>四种视角</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { padding: 20px; max-width: 1180px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; }
+  .eq { display: flex; align-items: center; gap: 10px; }
+  .eq .lab { text-align: center; font-weight: bold; margin-bottom: 4px; font-family: "Cambria Math", serif; }
+  table.m { border-collapse: separate; border-spacing: 3px; font-family: "Cambria Math", serif; font-size: 20px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); border-radius: 4px; }
+  table.m td { min-width: 46px; height: 38px; padding: 2px 6px; text-align: center; border-radius: 5px; }
+  table.m input { width: 44px; font: 18px "Cambria Math", serif; text-align: center; border: 1px solid var(--light);
+                  border-radius: 4px; background: transparent; }
+  .rd { background: rgba(233,169,19,0.32); }
+  .wr { background: rgba(142,68,173,0.28); color: var(--output); }
+  .done { color: var(--output); }
+  .op { font-size: 24px; }
+  button { font: inherit; padding: 4px 10px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  button.on { background: var(--text); color: #fff; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  #steptext { min-height: 92px; margin-top: 10px; color: var(--output); }
+  /* 行文里的列向量：分量上下排，两边加方括号 */
+  .cv { display: inline-block; vertical-align: middle; margin: 0 3px; padding: 2px 6px;
+        font-family: "Cambria Math", serif; line-height: 1.3; text-align: center;
+        border-radius: 4px; border-left: 2px solid currentColor;
+        border-right: 2px solid currentColor; }
+  .cv span { display: block; }
+  /* 行文里的小矩阵：各行上下排，两边加方括号 */
+  .mb { display: inline-block; vertical-align: middle; margin: 0 3px; padding: 2px 5px;
+        font-family: "Cambria Math", serif; line-height: 1.3; border-radius: 4px;
+        border-left: 2px solid currentColor; border-right: 2px solid currentColor; }
+  .mb .mr { display: block; white-space: nowrap; }
+  .mb .mc { display: inline-block; min-width: 1.4em; padding: 0 2px; text-align: center; }
+  .layers { display: flex; gap: 22px; }
+  table.p { border-collapse: separate; border-spacing: 3px; font-family: "Cambria Math", serif; font-size: 14px; }
+  table.p td { min-width: 90px; height: 34px; padding: 0 8px; white-space: nowrap; text-align: center; border-radius: 5px; border: 1px solid var(--light); }
+  table.p td.k1 { border-color: var(--comp1); }
+  table.p td.k2 { border-color: var(--comp2); }
+  table.p td.now { background: rgba(233,169,19,0.38); }
+  table.p td.past { background: rgba(142,68,173,0.12); }
+  .k1t { color: var(--comp1); } .k2t { color: var(--comp2); }
+  math { font-size: 17px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>矩阵乘法的四种视角</h1>
+  <p class="hint">选择一种视角，按"下一步"。琥珀色是这一步要读的数，紫色是这一步写出的部分。下方列出求乘积要做的全部乘法，排成两层：第 1 层用 B 的第一列和 C 的第一行，第 2 层用 B 的第二列和 C 的第二行。B、C 的元素可以直接修改。</p>
+  <div class="row">
+    <div class="card">
+      <div class="eq">
+        <div><div class="lab">B</div><table class="m" id="tB"></table></div>
+        <div><div class="lab">C</div><table class="m" id="tC"></table></div>
+        <div class="op">=</div>
+        <div><div class="lab">BC</div><table class="m" id="tP"></table></div>
+      </div>
+      <div style="margin-top:10px">
+        <button data-v="elem" class="on">元素视角</button><button data-v="col">列视角</button><button data-v="row">行视角</button><button data-v="outer">外积视角</button>
+      </div>
+      <div style="margin-top:6px">
+        <button id="prev">上一步</button><button id="next">下一步</button><button id="reset">从头开始</button>
+        <button id="example">恢复本篇的例子</button>
+        <span id="counter" style="margin-left:8px"></span>
+      </div>
+      <div id="steptext" class="num"></div>
+    </div>
+    <div class="card">
+      <div style="margin-bottom:6px">全部乘法 b<sub>ik</sub> c<sub>kj</sub>（行号 i、列号 j 和乘积相同）</div>
+      <div class="layers">
+        <div><div class="k1t" style="text-align:center">第 1 层（k = 1）</div><table class="p" id="L1"></table></div>
+        <div><div class="k2t" style="text-align:center">第 2 层（k = 2）</div><table class="p" id="L2"></table></div>
+      </div>
+      <p class="hint" style="margin:10px 0 4px">乘积第 i 行第 j 列 = 两层同一位置的两个数之和：</p>
+      <math display="block"><mrow><msub><mrow><mo>(</mo><mi mathvariant="bold">B</mi><mi mathvariant="bold">C</mi><mo>)</mo></mrow><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><msub><mi>b</mi><mrow><mi>i</mi><mn>1</mn></mrow></msub><msub><mi>c</mi><mrow><mn>1</mn><mi>j</mi></mrow></msub><mo>+</mo><msub><mi>b</mi><mrow><mi>i</mi><mn>2</mn></mrow></msub><msub><mi>c</mi><mrow><mn>2</mn><mi>j</mi></mrow></msub></mrow></math>
+      <p class="hint" id="views" style="margin:8px 0 0"></p>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var EX_B = [[1, 2], [0, 1], [3, 1]], EX_C = [[2, -1], [1, 3]];
+  var B = EX_B.map(function (r) { return r.slice(); });
+  var C = EX_C.map(function (r) { return r.slice(); });
+  var view = "elem", step = 0;
+
+  function fmt(v) {
+    var s = (Math.abs(v - Math.round(v)) < 1e-9) ? String(Math.round(v)) : String(+v.toFixed(3));
+    return s.replace("-", "−");
+  }
+  function par(v) { return v < 0 ? "(" + fmt(v) + ")" : fmt(v); }
+  function prod() {
+    var P = [];
+    for (var i = 0; i < 3; i++) { P.push([]); for (var j = 0; j < 2; j++) P[i].push(B[i][0] * C[0][j] + B[i][1] * C[1][j]); }
+    return P;
+  }
+  // 每种视角的步骤：读哪些、写哪些、用到哪些乘积 (i, j, k)
+  function steps() {
+    var out = [], i, j, k;
+    if (view === "elem") {
+      for (i = 0; i < 3; i++) for (j = 0; j < 2; j++)
+        out.push({ rB: cellsRow(i, 2), rC: cellsCol(j, 2), w: [[i, j]], used: [[i, j, 0], [i, j, 1]] });
+    } else if (view === "col") {
+      for (j = 0; j < 2; j++)
+        out.push({ rB: allCells(3, 2), rC: cellsCol(j, 2), w: [[0, j], [1, j], [2, j]],
+                   used: [[0, j, 0], [1, j, 0], [2, j, 0], [0, j, 1], [1, j, 1], [2, j, 1]], j: j });
+    } else if (view === "row") {
+      for (i = 0; i < 3; i++)
+        out.push({ rB: cellsRow(i, 2), rC: allCells(2, 2), w: [[i, 0], [i, 1]],
+                   used: [[i, 0, 0], [i, 1, 0], [i, 0, 1], [i, 1, 1]], i: i });
+    } else {
+      for (k = 0; k < 2; k++) {
+        var u = [];
+        for (i = 0; i < 3; i++) for (j = 0; j < 2; j++) u.push([i, j, k]);
+        out.push({ rB: cellsCol(k, 3), rC: cellsRow(k, 2), w: allCells(3, 2), used: u, k: k });
+      }
+    }
+    return out;
+  }
+  function cellsRow(i, n) { var a = []; for (var j = 0; j < n; j++) a.push([i, j]); return a; }
+  function cellsCol(j, n) { var a = []; for (var i = 0; i < n; i++) a.push([i, j]); return a; }
+  function allCells(r, c) { var a = []; for (var i = 0; i < r; i++) for (var j = 0; j < c; j++) a.push([i, j]); return a; }
+  function has(list, i, j) { return list.some(function (p) { return p[0] === i && p[1] === j; }); }
+
+  function buildInputs(tid, M, rows, cols) {
+    var t = document.getElementById(tid), h = "";
+    for (var i = 0; i < rows; i++) {
+      h += "<tr>";
+      for (var j = 0; j < cols; j++) h += '<td><input data-i="' + i + '" data-j="' + j + '" value="' + M[i][j] + '"></td>';
+      h += "</tr>";
+    }
+    t.innerHTML = h;
+    t.querySelectorAll("input").forEach(function (inp) {
+      inp.addEventListener("input", function () {
+        var v = parseFloat(inp.value);
+        if (!isNaN(v)) { M[+inp.dataset.i][+inp.dataset.j] = v; render(); }
+      });
+    });
+  }
+
+  function render() {
+    var st = steps(), n = st.length, P = prod();
+    step = Math.max(0, Math.min(step, n));
+    var cur = step > 0 ? st[step - 1] : null;
+    // B、C 的高亮
+    ["tB", "tC"].forEach(function (tid) {
+      var list = cur ? (tid === "tB" ? cur.rB : cur.rC) : [];
+      document.querySelectorAll("#" + tid + " td").forEach(function (td) {
+        var inp = td.firstChild;
+        td.className = has(list, +inp.dataset.i, +inp.dataset.j) ? "rd" : "";
+      });
+    });
+    // 乘积：已完成的部分
+    var acc = [[0, 0], [0, 0], [0, 0]], known = [[false, false], [false, false], [false, false]];
+    for (var s = 0; s < step; s++) {
+      st[s].used.forEach(function (u) { acc[u[0]][u[1]] += B[u[0]][u[2]] * C[u[2]][u[1]]; });
+      st[s].w.forEach(function (w) { known[w[0]][w[1]] = true; });
+    }
+    var h = "";
+    for (var i = 0; i < 3; i++) {
+      h += "<tr>";
+      for (var j = 0; j < 2; j++) {
+        var cls = cur && has(cur.w, i, j) ? "wr" : (known[i][j] ? "done" : "");
+        h += '<td class="' + cls + '">' + (known[i][j] ? fmt(acc[i][j]) : "") + "</td>";
+      }
+      h += "</tr>";
+    }
+    document.getElementById("tP").innerHTML = h;
+    // 全部乘法
+    [0, 1].forEach(function (k) {
+      var t = "";
+      for (var i = 0; i < 3; i++) {
+        t += "<tr>";
+        for (var j = 0; j < 2; j++) {
+          var now = cur && cur.used.some(function (u) { return u[0] === i && u[1] === j && u[2] === k; });
+          var past = false;
+          for (var s2 = 0; s2 < step - 1; s2++)
+            if (st[s2].used.some(function (u) { return u[0] === i && u[1] === j && u[2] === k; })) past = true;
+          t += '<td class="k' + (k + 1) + (now ? " now" : (past ? " past" : "")) + '">' +
+               fmt(B[i][k]) + " × " + par(C[k][j]) + " = " + fmt(B[i][k] * C[k][j]) + "</td>";
+        }
+        t += "</tr>";
+      }
+      document.getElementById("L" + (k + 1)).innerHTML = t;
+    });
+    document.getElementById("counter").textContent = "第 " + step + " 步，共 " + n + " 步";
+    document.getElementById("prev").disabled = step === 0;
+    document.getElementById("next").disabled = step === n;
+    document.getElementById("steptext").innerHTML = cur ? describe(cur, P) : "按\"下一步\"开始。";
+    var names = { elem: "元素视角", col: "列视角", row: "行视角", outer: "外积视角" };
+    var how = { elem: "一次取一根前后方向的柱子（同一位置的两层）", col: "一次取一个竖直切片（同一列的两层）",
+                row: "一次取一个水平切片（同一行的两层）", outer: "一次取一整层" };
+    document.getElementById("views").textContent = names[view] + "：" + how[view] + "。四种视角用的是同样 12 个乘积，只是分组的顺序不同。";
+  }
+
+  function rowStr(r) { return "[ " + r.map(fmt).join("  ") + " ]"; }
+  function matStr(M) {
+    return '<span class="mb">' + M.map(function (r) {
+      return '<span class="mr">' + r.map(function (v) {
+        return '<span class="mc">' + fmt(v) + "</span>";
+      }).join("") + "</span>";
+    }).join("") + "</span>";
+  }
+  function colStr(c) {
+    return '<span class="cv">' + c.map(function (v) { return "<span>" + fmt(v) + "</span>"; }).join("") + "</span>";
+  }
+  function describe(cur, P) {
+    var i, j, k;
+    if (view === "elem") {
+      i = cur.w[0][0]; j = cur.w[0][1];
+      return "第 " + (i + 1) + " 行第 " + (j + 1) + " 列：" + rowStr(B[i]) + " · " + colStr([C[0][j], C[1][j]]) +
+             " = " + fmt(B[i][0]) + " × " + par(C[0][j]) + " + " + fmt(B[i][1]) + " × " + par(C[1][j]) + " = " + fmt(P[i][j]);
+    }
+    if (view === "col") {
+      j = cur.j;
+      return "第 " + (j + 1) + " 列：B " + colStr([C[0][j], C[1][j]]) + " = " + par(C[0][j]) + " × " + colStr(B.map(function (r) { return r[0]; })) +
+             " + " + par(C[1][j]) + " × " + colStr(B.map(function (r) { return r[1]; })) + " = " + colStr(P.map(function (r) { return r[j]; }));
+    }
+    if (view === "row") {
+      i = cur.i;
+      return "第 " + (i + 1) + " 行：" + rowStr(B[i]) + " C = " + par(B[i][0]) + " × " + rowStr(C[0]) + " + " +
+             par(B[i][1]) + " × " + rowStr(C[1]) + " = " + rowStr(P[i]);
+    }
+    k = cur.k;
+    var col = B.map(function (r) { return r[k]; });
+    var O = col.map(function (a) { return C[k].map(function (b) { return a * b; }); });
+    return "第 " + (k + 1) + " 个外积：" + colStr(col) + " " + rowStr(C[k]) + " = " +
+           matStr(O) + (k === 1 ? "；加上第 1 个外积，得到乘积" : "；先放进结果，下一步再加上第 2 个");
+  }
+
+  document.querySelectorAll("button[data-v]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.querySelectorAll("button[data-v]").forEach(function (x) { x.classList.remove("on"); });
+      b.classList.add("on"); view = b.dataset.v; step = 0; render();
+    });
+  });
+  document.getElementById("next").onclick = function () { step++; render(); };
+  document.getElementById("prev").onclick = function () { step--; render(); };
+  document.getElementById("reset").onclick = function () { step = 0; render(); };
+  document.getElementById("example").onclick = function () {
+    B = EX_B.map(function (r) { return r.slice(); }); C = EX_C.map(function (r) { return r.slice(); });
+    buildInputs("tB", B, 3, 2); buildInputs("tC", C, 2, 2); render();
+  };
+  buildInputs("tB", B, 3, 2);
+  buildInputs("tC", C, 2, 2);
+  render();
+})();
+</script>
+</body>
+</html>

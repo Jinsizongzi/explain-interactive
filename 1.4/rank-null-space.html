@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>秩与零空间</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { padding: 20px; max-width: 1180px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; line-height: 1.6; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; }
+  .lab { text-align: center; font-weight: bold; margin-bottom: 4px; }
+  table.m { border-collapse: separate; border-spacing: 3px; font-family: "Cambria Math", serif; font-size: 19px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); border-radius: 4px; }
+  table.m td { min-width: 48px; height: 40px; padding: 2px 6px; text-align: center; border-radius: 5px; }
+  table.m td.bar { border-left: 2px solid var(--text); border-radius: 0; }
+  table.m input { width: 46px; font: 18px "Cambria Math", serif; text-align: center; border: 1px solid var(--light);
+                  border-radius: 4px; background: transparent; }
+  .piv { outline: 2.5px solid var(--state); outline-offset: -3px; }
+  .free { background: rgba(154,166,182,0.25); }
+  .zrow { background: rgba(62,155,58,0.18); }
+  .brow { background: rgba(214,69,69,0.22); }
+  button { font: inherit; padding: 4px 10px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; }
+  .bad { color: var(--bad); } .good { color: var(--good); } .st { color: var(--state); font-weight: bold; }
+  .out { color: var(--output); }
+  .cv { display: inline-flex; align-items: stretch; vertical-align: middle; line-height: 1.2;
+        margin: 2px 3px; font-family: "Cambria Math", "Times New Roman", serif; }
+  .cv .b { width: 4px; border: 1.4px solid currentColor; border-radius: 1px; font-size: 0; line-height: 0; }
+  .cv .b:first-child { border-right: 0; }
+  .cv .b:last-child { border-left: 0; }
+  .cv .n { display: inline-flex; flex-direction: column; justify-content: center; padding: 0 2px;
+           font-size: 1em; text-align: center; }
+  ul { margin: 6px 0; padding-left: 20px; line-height: 1.8; }
+</style>
+</head>
+<body>
+<main>
+  <h1>秩与零空间</h1>
+  <p class="hint">修改左边 3 × 4 系数矩阵和右端向量里的数，右边实时给出增广矩阵的最简阶梯形、秩、主元列和自由列，系数矩阵的零空间的一组基（基础解系），以及方程组有没有解；有解时给出自由变量都取 0 的特解和全部解。琥珀色框是主元，灰色是自由列；最后一列是右端向量消元后的结果。</p>
+  <div class="row">
+    <div class="card">
+      <div class="lab">系数矩阵 | 右端向量（可修改）</div>
+      <table class="m" id="tIn"></table>
+      <div style="margin-top:8px">
+        <button data-p="F">本篇的 F，有解</button>
+        <button data-p="Fbad">同一个 F，换右端向量后无解</button><br>
+        <button data-p="r1">秩为 1</button>
+        <button data-p="r3">秩为 3</button>
+        <button data-p="zero">零矩阵</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="lab">最简阶梯形</div>
+      <table class="m" id="tR"></table>
+      <div id="summary" style="margin-top:10px; line-height:1.8"></div>
+    </div>
+    <div class="card" style="min-width:360px">
+      <div class="lab">解</div>
+      <div id="sol" class="num" style="line-height:1.8"></div>
+    </div>
+  </div>
+</main>
+<script>
+"use strict";
+function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { [a, b] = [b, a % b]; } return a || 1; }
+function fr(n, d = 1) { if (d < 0) { n = -n; d = -d; } const g = gcd(n, d); return [n / g, d / g]; }
+const sub = (x, y) => fr(x[0] * y[1] - y[0] * x[1], x[1] * y[1]);
+const add = (x, y) => fr(x[0] * y[1] + y[0] * x[1], x[1] * y[1]);
+const mulf = (x, y) => fr(x[0] * y[0], x[1] * y[1]);
+const divf = (x, y) => fr(x[0] * y[1], x[1] * y[0]);
+const isZero = x => x[0] === 0;
+function show(x) { const s = x[1] === 1 ? String(x[0]) : x[0] + "/" + x[1]; return s.replace("-", "−"); }
+const vec = v => `<span class="cv"><span class="b">[</span><span class="n">${v.map(x => `<span>${show(x)}</span>`).join("")}</span><span class="b">]</span></span>`;
+
+const PRESETS = {
+  F: [[1, 2, 1, 3, 2], [2, 4, 3, 5, 5], [3, 6, 4, 8, 7]],
+  Fbad: [[1, 2, 1, 3, 2], [2, 4, 3, 5, 5], [3, 6, 4, 8, 6]],
+  r1: [[1, 2, 1, 3, 1], [2, 4, 2, 6, 2], [3, 6, 3, 9, 3]],
+  r3: [[1, 0, 2, 1, 3], [0, 1, 1, 0, 2], [1, 1, 0, 2, 1]],
+  zero: [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]],
+};
+let A = PRESETS.F.map(r => r.slice());
+
+// 对系数部分（前 4 列）求最简阶梯形，右端向量跟着变。
+function rref(Mx) {
+  const m = Mx.length, n = 4;
+  const R = Mx.map(r => r.map(v => fr(v)));
+  const piv = [];
+  let r = 0;
+  for (let j = 0; j < n && r < m; j++) {
+    let p = r;
+    while (p < m && isZero(R[p][j])) p++;
+    if (p === m) continue;
+    [R[r], R[p]] = [R[p], R[r]];
+    const d = R[r][j];
+    R[r] = R[r].map(v => divf(v, d));
+    for (let i = 0; i < m; i++) {
+      if (i === r || isZero(R[i][j])) continue;
+      const f = R[i][j];
+      R[i] = R[i].map((v, c) => sub(v, mulf(f, R[r][c])));
+    }
+    piv.push(j);
+    r++;
+  }
+  return { R, piv };
+}
+
+function renderInput() {
+  const t = document.getElementById("tIn");
+  t.innerHTML = "";
+  A.forEach((row, i) => {
+    const tr = t.insertRow();
+    row.forEach((v, j) => {
+      const td = tr.insertCell();
+      if (j === 4) td.classList.add("bar");
+      const inp = document.createElement("input");
+      inp.value = v;
+      inp.addEventListener("input", () => {
+        const x = parseInt(inp.value, 10);
+        A[i][j] = Number.isFinite(x) ? x : 0;
+        render();
+      });
+      td.appendChild(inp);
+    });
+  });
+}
+
+function render() {
+  const { R, piv } = rref(A);
+  const m = 3, n = 4, r = piv.length;
+  const free = [0, 1, 2, 3].filter(j => !piv.includes(j));
+  // 有没有 "0 = 非零"
+  let badRow = -1;
+  for (let i = r; i < m; i++) if (!isZero(R[i][4])) { badRow = i; break; }
+  const t = document.getElementById("tR");
+  t.innerHTML = "";
+  R.forEach((row, i) => {
+    const tr = t.insertRow();
+    row.forEach((v, j) => {
+      const td = tr.insertCell();
+      td.textContent = show(v);
+      if (j === 4) td.classList.add("bar");
+      if (piv[i] === j) td.classList.add("piv");
+      if (j < 4 && free.includes(j)) td.classList.add("free");
+      if (i >= r) td.classList.add(isZero(R[i][4]) ? "zrow" : "brow");
+    });
+  });
+  const kase = r === m && r === n ? "r = m = n" : r === n ? "r = n < m" : r === m ? "r = m < n" : "r < m 且 r < n";
+  document.getElementById("summary").innerHTML =
+    `秩 <span class="st">${r}</span>；主元列：${piv.map(j => "第 " + (j + 1) + " 列").join("、") || "无"}；` +
+    `自由列：${free.map(j => "第 " + (j + 1) + " 列").join("、") || "无"}<br>` +
+    `列数 4 = 秩 ${r} + 零空间的维数 ${n - r}<br>` +
+    `全为 0 的行有 ${m - r} 行，自由变量有 ${n - r} 个（m = 3，n = 4，属于 ${kase}）`;
+  // 基础解系
+  const basis = free.map(f => {
+    const x = Array.from({ length: n }, () => fr(0));
+    x[f] = fr(1);
+    piv.forEach((pj, i) => { x[pj] = sub(fr(0), R[i][f]); });
+    return x;
+  });
+  const coef = A.map(row => row.slice(0, 4).map(v => fr(v)));
+  const times = x => coef.map(row => row.reduce((acc, a, j) => add(acc, mulf(a, x[j])), fr(0)));
+  let html = "<b>零空间的一组基（自由变量轮流取 1）</b><ul>";
+  if (basis.length === 0) html += "<li>没有自由变量，零空间只有零向量</li>";
+  basis.forEach((x, k) => {
+    html += `<li class="out">自由变量 x<sub>${free[k] + 1}</sub> = 1：${vec(x)}　<span class="good">核对：乘系数矩阵得 ${vec(times(x))}</span></li>`;
+  });
+  html += "</ul>";
+  const b = A.map(row => fr(row[4]));
+  if (badRow >= 0) {
+    html += `<b class="bad">无解</b>：消元后第 ${badRow + 1} 行是 0 = ${show(R[badRow][4])}`;
+  } else {
+    const xp = Array.from({ length: n }, () => fr(0));
+    piv.forEach((pj, i) => { xp[pj] = R[i][4]; });
+    html += `<b class="good">有解</b><br>特解（自由变量都取 0）：<span class="out">${vec(xp)}</span>，核对：乘系数矩阵得 ${vec(times(xp))}，右端向量是 ${vec(b)}<br>`;
+    html += basis.length
+      ? `全部解 = ${vec(xp)}` + basis.map((x, k) => ` + c<sub>${k + 1}</sub>${vec(x)}`).join("") + "，系数任意"
+      : "零空间只有零向量，解只有这一个";
+  }
+  document.getElementById("sol").innerHTML = html;
+}
+
+document.querySelectorAll("button[data-p]").forEach(btn => {
+  btn.onclick = () => { A = PRESETS[btn.dataset.p].map(r => r.slice()); renderInput(); render(); };
+});
+renderInput(); render();
+</script>
+</body>
+</html>

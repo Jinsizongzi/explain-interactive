@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>点积与夹角</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; touch-action: none; user-select: none; }
+  .panel { flex: 1; min-width: 320px; max-width: 460px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  /* 列向量：分量竖着排，两边加方括号（和正文、配图的写法一致） */
+  .colvec { display: inline-flex; flex-direction: column; align-items: center;
+            position: relative; padding: 2px 10px; line-height: 1.25;
+            vertical-align: middle;
+            font-family: "Cambria Math", "Times New Roman", serif; }
+  .colvec::before, .colvec::after { content: ""; position: absolute; top: 0; bottom: 0;
+            width: 5px; border: 1.5px solid currentColor; }
+  .colvec::before { left: 0; border-right: none; }
+  .colvec::after { right: 0; border-left: none; }
+  .big { font-size: 22px; font-weight: bold; }
+  .a { color: var(--comp1); } .b { color: var(--comp2); } .dot { color: var(--state); }
+  .ang { color: var(--output); }
+  button { font: inherit; padding: 4px 10px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  .hidden-val { filter: blur(6px); }
+  math { font-size: 18px; }
+  .sign-pos { color: var(--good); } .sign-zero { color: var(--neutral); } .sign-neg { color: var(--bad); }
+  label { cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>点积与夹角</h1>
+    <p class="hint">拖动两个箭头的终点。绿色区域里的向量和 <b class="a">a</b> 的点积为正，红色区域里为负，虚线上为 0。</p>
+    <svg id="plane" width="560" height="560" viewBox="0 0 560 560"></svg>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div>预设：
+        <button data-b="1,3">本篇例子</button>
+        <button data-b="-1,2">正交</button>
+        <button data-b="-3,1">钝角</button>
+        <button data-b="4,2">同方向</button>
+      </div>
+      <div style="margin-top:6px">
+        <label><input type="checkbox" id="snap" checked> 吸附到整数格点</label>
+        <label style="margin-left:12px"><input type="checkbox" id="guess"> 先猜再看</label>
+        <button id="reveal" style="display:none">揭晓</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label">向量 <b class="a">a</b></span><span class="num a" id="va"></span></div>
+      <div class="row"><span class="label">向量 <b class="b">b</b></span><span class="num b" id="vb"></span></div>
+    </div>
+    <div class="card" id="results">
+      <div class="row"><span class="label">点积 <b class="a">a</b>·<b class="b">b</b></span><span class="num" id="dotexpr"></span></div>
+      <div class="row"><span></span><span class="num big dot" id="dotval"></span></div>
+      <div class="row"><span class="label">长度 ‖<b class="a">a</b>‖</span><span class="num a" id="la"></span></div>
+      <div class="row"><span class="label">长度 ‖<b class="b">b</b>‖</span><span class="num b" id="lb"></span></div>
+      <div class="row"><span class="label">余弦 cos θ（余弦相似度）</span><span class="num" id="cos"></span></div>
+      <div class="row"><span class="label">夹角 θ</span><span class="num big ang" id="theta"></span></div>
+      <div class="row"><span class="label">点积的正负</span><span id="sign"></span></div>
+    </div>
+    <div class="card">
+      <math display="block">
+        <mrow>
+          <mi>cos</mi><mo>&#x2061;</mo><mi>θ</mi><mo>=</mo>
+          <mfrac>
+            <mrow><mi mathvariant="bold" mathcolor="#E8743B">a</mi><mo>·</mo><mi mathvariant="bold" mathcolor="#0E96B8">b</mi></mrow>
+            <mrow><mo>‖</mo><mi mathvariant="bold" mathcolor="#E8743B">a</mi><mo>‖</mo><mo>‖</mo><mi mathvariant="bold" mathcolor="#0E96B8">b</mi><mo>‖</mo></mrow>
+          </mfrac>
+        </mrow>
+      </math>
+      <p class="hint" id="explain" style="margin:8px 0 0"></p>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { input: "#2F6FE0", comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD",
+            state: "#E9A913", bad: "#D64545", good: "#3E9B3A", neutral: "#9AA6B6",
+            light: "#E7ECF3", text: "#1F2937" };
+  var SIZE = 560, UNIT = 50, RANGE = 5;          // 画布像素、每格像素、坐标范围 ±5
+  var O = SIZE / 2;
+  var svg = document.getElementById("plane");
+  var NS = "http://www.w3.org/2000/svg";
+  var state = { a: [2, 1], b: [1, 3], drag: null };
+
+  function px(x, y) { return [O + UNIT * x, O - UNIT * y]; }
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || svg).appendChild(e);
+    return e;
+  }
+  function fmt(v, n) {
+    var s = (Math.abs(v) < 1e-9 ? 0 : v).toFixed(n);
+    s = s.replace(/\.?0+$/, "");
+    return s.replace("-", "−");
+  }
+  function sq(v) { return v[0] * v[0] + v[1] * v[1]; }
+  // 列向量竖写：两个分量上下排，两边的方括号由 CSS 画出
+  function colvec(v, n) {
+    return '<span class="colvec"><span>' + fmt(v[0], n) + '</span><span>'
+           + fmt(v[1], n) + '</span></span>';
+  }
+
+  // 静态层：半平面、网格、坐标轴
+  var halfPos = el("polygon", { fill: C.good, "fill-opacity": 0.10 });
+  var halfNeg = el("polygon", { fill: C.bad, "fill-opacity": 0.08 });
+  for (var i = -RANGE; i <= RANGE; i++) {
+    var p1 = px(i, -RANGE), p2 = px(i, RANGE), q1 = px(-RANGE, i), q2 = px(RANGE, i);
+    el("line", { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1], stroke: C.light });
+    el("line", { x1: q1[0], y1: q1[1], x2: q2[0], y2: q2[1], stroke: C.light });
+    if (i !== 0) {
+      var t = el("text", { x: px(i, 0)[0], y: O + 16, "font-size": 11, fill: C.neutral, "text-anchor": "middle" });
+      t.textContent = i;
+      var t2 = el("text", { x: O - 10, y: px(0, i)[1] + 4, "font-size": 11, fill: C.neutral, "text-anchor": "middle" });
+      t2.textContent = i;
+    }
+  }
+  el("line", { x1: 0, y1: O, x2: SIZE, y2: O, stroke: C.neutral, "stroke-width": 1.5 });
+  el("line", { x1: O, y1: 0, x2: O, y2: SIZE, stroke: C.neutral, "stroke-width": 1.5 });
+  var perp = el("line", { stroke: C.neutral, "stroke-width": 2, "stroke-dasharray": "8 5" });
+  var arc = el("path", { fill: "none", stroke: C.output, "stroke-width": 2 });
+  var arcLabel = el("text", { "font-size": 14, fill: C.output, "text-anchor": "middle" });
+
+  function arrow(color) {
+    var g = el("g", {});
+    var line = el("line", { stroke: color, "stroke-width": 3.5 }, g);
+    var head = el("polygon", { fill: color }, g);
+    var label = el("text", { "font-size": 20, "font-weight": "bold", fill: color,
+                             "font-family": "Cambria Math, serif" }, g);
+    var handle = el("circle", { r: 11, fill: color, "fill-opacity": 0.18, stroke: color,
+                                "stroke-width": 1.5, style: "cursor:grab" }, g);
+    return { line: line, head: head, label: label, handle: handle };
+  }
+  var A = arrow(C.comp1), B = arrow(C.comp2);
+  A.label.textContent = "a"; B.label.textContent = "b";
+  A.handle.dataset.which = "a"; B.handle.dataset.which = "b";
+
+  function drawArrow(ar, v) {
+    var s = px(0, 0), e = px(v[0], v[1]);
+    var ang = Math.atan2(e[1] - s[1], e[0] - s[0]), hl = 14;
+    var bx = e[0] - hl * Math.cos(ang), by = e[1] - hl * Math.sin(ang);
+    ar.line.setAttribute("x1", s[0]); ar.line.setAttribute("y1", s[1]);
+    ar.line.setAttribute("x2", bx); ar.line.setAttribute("y2", by);
+    var pts = [[e[0], e[1]], [e[0] + hl * Math.cos(ang + 2.7), e[1] + hl * Math.sin(ang + 2.7)],
+               [e[0] + hl * Math.cos(ang - 2.7), e[1] + hl * Math.sin(ang - 2.7)]];
+    ar.head.setAttribute("points", pts.map(function (p) { return p.join(","); }).join(" "));
+    ar.handle.setAttribute("cx", e[0]); ar.handle.setAttribute("cy", e[1]);
+    ar.label.setAttribute("x", e[0] + 12); ar.label.setAttribute("y", e[1] - 10);
+    var hide = sq(v) < 1e-12;
+    ar.line.style.display = ar.head.style.display = hide ? "none" : "";
+  }
+
+  // 半平面：a·w > 0 的点。用边界直线（垂直于 a）截出画布内的两块多边形
+  function halfPlanes(a) {
+    var corners = [[-RANGE, -RANGE], [RANGE, -RANGE], [RANGE, RANGE], [-RANGE, RANGE]];
+    var pos = [], neg = [];
+    for (var k = 0; k < 4; k++) {
+      var P = corners[k], Q = corners[(k + 1) % 4];
+      var fp = a[0] * P[0] + a[1] * P[1], fq = a[0] * Q[0] + a[1] * Q[1];
+      if (fp >= 0) pos.push(P); if (fp <= 0) neg.push(P);
+      if ((fp > 0 && fq < 0) || (fp < 0 && fq > 0)) {
+        var t = fp / (fp - fq), X = [P[0] + t * (Q[0] - P[0]), P[1] + t * (Q[1] - P[1])];
+        pos.push(X); neg.push(X);
+      }
+    }
+    function pts(list) { return list.map(function (p) { return px(p[0], p[1]).join(","); }).join(" "); }
+    halfPos.setAttribute("points", pts(pos));
+    halfNeg.setAttribute("points", pts(neg));
+    var d = [-a[1], a[0]], L = 20;
+    var s = px(-L * d[0], -L * d[1]), e = px(L * d[0], L * d[1]);
+    perp.setAttribute("x1", s[0]); perp.setAttribute("y1", s[1]);
+    perp.setAttribute("x2", e[0]); perp.setAttribute("y2", e[1]);
+  }
+
+  function drawArc(a, b) {
+    var t1 = Math.atan2(a[1], a[0]), t2 = Math.atan2(b[1], b[0]);
+    var diff = t2 - t1;
+    while (diff > Math.PI) diff -= 2 * Math.PI;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    var r = 0.8, n = 30, d = "";
+    for (var k = 0; k <= n; k++) {
+      var t = t1 + diff * k / n, p = px(r * Math.cos(t), r * Math.sin(t));
+      d += (k ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1);
+    }
+    arc.setAttribute("d", d);
+    var m = t1 + diff / 2, lp = px((r + 0.45) * Math.cos(m), (r + 0.45) * Math.sin(m));
+    arcLabel.setAttribute("x", lp[0]); arcLabel.setAttribute("y", lp[1] + 5);
+    arcLabel.textContent = "θ";
+  }
+
+  var guessing = false;
+  function update() {
+    var a = state.a, b = state.b;
+    halfPlanes(a);
+    drawArrow(A, a); drawArrow(B, b);
+    document.getElementById("va").innerHTML = colvec(a, 2);
+    document.getElementById("vb").innerHTML = colvec(b, 2);
+    var dot = a[0] * b[0] + a[1] * b[1];
+    var la = Math.sqrt(sq(a)), lb = Math.sqrt(sq(b));
+    document.getElementById("dotexpr").textContent =
+      fmt(a[0], 2) + " × " + fmt(b[0], 2) + " + " + fmt(a[1], 2) + " × " + fmt(b[1], 2);
+    document.getElementById("dotval").textContent = "= " + fmt(dot, 3);
+    document.getElementById("la").textContent = "√" + fmt(sq(a), 3) + " ≈ " + fmt(la, 3);
+    document.getElementById("lb").textContent = "√" + fmt(sq(b), 3) + " ≈ " + fmt(lb, 3);
+    var signEl = document.getElementById("sign"), ex = document.getElementById("explain");
+    if (la < 1e-9 || lb < 1e-9) {
+      document.getElementById("cos").textContent = "零向量没有方向";
+      document.getElementById("theta").textContent = "无定义";
+      arc.setAttribute("d", ""); arcLabel.textContent = "";
+      signEl.textContent = "0"; signEl.className = "sign-zero";
+      ex.textContent = "有一个向量是零向量：点积是 0，但夹角没有定义。";
+      return;
+    }
+    var cos = Math.max(-1, Math.min(1, dot / (la * lb)));
+    var theta = Math.acos(cos) * 180 / Math.PI;
+    document.getElementById("cos").textContent = fmt(dot, 3) + " ÷ " + fmt(la * lb, 3) + " ≈ " + fmt(cos, 4);
+    document.getElementById("theta").textContent = fmt(theta, 1) + "°";
+    drawArc(a, b);
+    if (Math.abs(dot) < 1e-9) {
+      signEl.textContent = "为 0：两个向量正交"; signEl.className = "sign-zero";
+    } else if (dot > 0) {
+      signEl.textContent = cos > 1 - 1e-9 ? "为正：方向相同（0°）" : "为正：夹角是锐角";
+      signEl.className = "sign-pos";
+    } else {
+      signEl.textContent = cos < -1 + 1e-9 ? "为负：方向相反（180°）" : "为负：夹角是钝角";
+      signEl.className = "sign-neg";
+    }
+    ex.textContent = "两个长度的乘积总是正数，所以点积和 cos θ 的正负相同。|cos θ| = 1 时，两个向量在同一条直线上。";
+    var vals = ["dotval", "cos", "theta", "sign"];
+    vals.forEach(function (id) { document.getElementById(id).classList.toggle("hidden-val", guessing); });
+  }
+
+  // 拖动
+  function toMath(evt) {
+    var pt = svg.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    var p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    var x = (p.x - O) / UNIT, y = (O - p.y) / UNIT;
+    if (document.getElementById("snap").checked) { x = Math.round(x); y = Math.round(y); }
+    else { x = Math.round(x * 10) / 10; y = Math.round(y * 10) / 10; }
+    return [Math.max(-RANGE, Math.min(RANGE, x)), Math.max(-RANGE, Math.min(RANGE, y))];
+  }
+  svg.addEventListener("pointerdown", function (e) {
+    var w = e.target.dataset && e.target.dataset.which;
+    if (w) { state.drag = w; svg.setPointerCapture(e.pointerId); }
+  });
+  svg.addEventListener("pointermove", function (e) {
+    if (!state.drag) return;
+    state[state.drag] = toMath(e);
+    update();
+  });
+  svg.addEventListener("pointerup", function () { state.drag = null; });
+
+  document.querySelectorAll("button[data-b]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.a = [2, 1];
+      state.b = btn.dataset.b.split(",").map(Number);
+      update();
+    });
+  });
+  var guessBox = document.getElementById("guess"), reveal = document.getElementById("reveal");
+  guessBox.addEventListener("change", function () {
+    guessing = guessBox.checked;
+    reveal.style.display = guessing ? "" : "none";
+    update();
+  });
+  reveal.addEventListener("click", function () { guessing = false; guessBox.checked = false; reveal.style.display = "none"; update(); });
+
+  update();
+})();
+</script>
+</body>
+</html>

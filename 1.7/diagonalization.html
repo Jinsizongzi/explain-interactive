@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>对角化</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; max-width: 620px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; touch-action: none; user-select: none; }
+  .panel { flex: 1; min-width: 380px; max-width: 560px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 10px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 20px; font-weight: bold; }
+  .o { color: var(--output); } .g { color: var(--good); } .i { color: var(--input); }
+  .st { color: #b7860b; } .good { color: var(--good); }
+  button { font: inherit; padding: 4px 10px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  input[type=range] { width: 240px; vertical-align: middle; }
+  table.m { border-collapse: collapse; font-family: "Cambria Math", serif; font-size: 17px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); }
+  table.m td { padding: 3px 10px; text-align: center; }
+  .mats { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
+  .note { margin-top: 8px; font-size: 14px; line-height: 1.5; }
+  .cv { display: inline-flex; align-items: stretch; vertical-align: middle; line-height: 1.2;
+        margin: 2px 3px; font-family: "Cambria Math", "Times New Roman", serif; }
+  .cv .b { width: 4px; border: 1.4px solid currentColor; border-radius: 1px; font-size: 0; line-height: 0; }
+  .cv .b:first-child { border-right: 0; }
+  .cv .b:last-child { border-left: 0; }
+  .cv .n { display: inline-flex; flex-direction: column; justify-content: center; padding: 0 2px;
+           font-size: 1em; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>对角化</h1>
+    <p class="hint">左图里拖动蓝色圆点改变输入的向量。橙色和青色的两段是它沿两条特征方向的分解，
+      粗的两段是各段乘上自己的特征值以后的结果，首尾相接就得到乘矩阵以后的向量。
+      下面的滑块改连乘的次数。矩阵固定为 [3 2; 1 2]，两个特征值是 4 和 1。
+      面板里的小数是约数，末位可能差 1。</p>
+    <svg id="plane" width="560" height="560" viewBox="0 0 560 560"></svg>
+    <div id="note" class="note num"></div>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div class="row"><span class="label i">输入的向量</span><span class="num i big" id="vin"></span></div>
+      <div class="row"><span class="label">第 1 步　特征向量下的坐标</span><span class="num" id="coord"></span></div>
+      <div class="row"><span class="label">第 2 步　两个坐标乘 4 和 1</span><span class="num" id="scaled"></span></div>
+      <div class="row"><span class="label o">第 3 步　组合回去</span><span class="num o big" id="vout"></span></div>
+      <div class="row"><span class="label">直接算矩阵乘向量</span><span class="num good" id="direct"></span></div>
+      <div style="margin-top:6px">
+        <button id="p12"></button>
+        <button id="pe1"></button>
+        <button id="pe2"></button>
+        <button id="p01"></button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label">连乘的次数 k</span>
+        <span><input type="range" id="k" min="0" max="12" step="1" value="1">
+          <span class="num big" id="kv"></span></span></div>
+      <div class="mats" style="margin-top:8px">
+        <div>
+          <div class="label" style="margin-bottom:4px">Λ 的 k 次幂</div>
+          <table class="m"><tr><td class="st" id="l11"></td><td>0</td></tr>
+                           <tr><td>0</td><td class="st" id="l22"></td></tr></table>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:4px">矩阵的 k 次幂</div>
+          <table class="m"><tr><td id="k11"></td><td id="k12"></td></tr>
+                           <tr><td id="k21"></td><td id="k22"></td></tr></table>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px"><span class="label o">k 次幂作用在当前向量上</span>
+        <span class="num o" id="akv"></span></div>
+      <div class="row"><span class="label">按特征值算：4^k 和 1^k 各乘一段</span>
+        <span class="num good" id="akv2"></span></div>
+    </div>
+    <div class="card">
+      <div class="label">k 大时沿 <span id="dir1"></span> 的那一项占比趋向 1</div>
+      <div class="row"><span class="label">近似 (4^k / 3) [2 2; 1 1] 的四个数</span>
+        <span class="num" id="approx"></span></div>
+      <div class="row"><span class="label">和真实的 k 次幂相差最多</span><span class="num" id="gap"></span></div>
+      <div class="row"><span class="label">结果两个分量的比值</span><span class="num" id="ratio"></span></div>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD", state: "#E9A913",
+            neutral: "#9AA6B6", light: "#E7ECF3", input: "#2F6FE0", good: "#3E9B3A" };
+  var NS = "http://www.w3.org/2000/svg";
+  var SIZE = 560, UNIT = 42, O = 150, OY = 420, RANGE = 9;
+  var svg = document.getElementById("plane");
+  var M = [[3, 2], [1, 2]];
+  var E1 = [2, 1], E2 = [1, -1], L1 = 4, L2 = 1;
+  var v = [1, 2], k = 1;
+
+  function px(x, y) { return [O + UNIT * x, OY - UNIT * y]; }
+  function inv(sx, sy) { return [(sx - O) / UNIT, (OY - sy) / UNIT]; }
+  function g(tag, at, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var kk in at) e.setAttribute(kk, at[kk]);
+    (parent || svg).appendChild(e);
+    return e;
+  }
+  function fmt(x) {
+    if (Math.abs(x) < 1e-9) x = 0;
+    var s = Math.abs(x) >= 1e6 ? String(Math.round(x)) : x.toFixed(3);
+    if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    return s.replace("-", "−");
+  }
+  function mul(M, p) { return [M[0][0] * p[0] + M[0][1] * p[1], M[1][0] * p[0] + M[1][1] * p[1]]; }
+  function vec(p) {
+    return '<span class="cv"><span class="b">[</span><span class="n">' +
+      p.map(function (x) { return "<span>" + fmt(x) + "</span>"; }).join("") +
+      '</span><span class="b">]</span></span>';
+  }
+
+  // 竖写的向量标注：两行数字加方括号
+  function vlabel(parent, color) {
+    var gg = g("g", {}, parent);
+    var t1 = g("text", { "font-size": 13, fill: color, "text-anchor": "middle",
+                         "dominant-baseline": "middle", "font-family": "Cambria Math, serif" }, gg);
+    var t2 = g("text", { "font-size": 13, fill: color, "text-anchor": "middle",
+                         "dominant-baseline": "middle", "font-family": "Cambria Math, serif" }, gg);
+    var lines = [];
+    for (var i = 0; i < 6; i++) {
+      lines.push(g("line", { stroke: color, "stroke-width": 1.3, "stroke-linecap": "round" }, gg));
+    }
+    return { t1: t1, t2: t2, lines: lines };
+  }
+  function setVLabel(o, x, y, comps) {
+    var strs = [fmt(comps[0]), fmt(comps[1])];
+    var w = Math.max(strs[0].length, strs[1].length) * 7.4 + 12;
+    var x0 = x - w / 2, x1 = x + w / 2, top = y - 17, bot = y + 17, tk = 5;
+    o.t1.setAttribute("x", x); o.t1.setAttribute("y", y - 9);
+    o.t2.setAttribute("x", x); o.t2.setAttribute("y", y + 9);
+    o.t1.textContent = strs[0]; o.t2.textContent = strs[1];
+    var pts = [[x0, top, x0, bot], [x0, top, x0 + tk, top], [x0, bot, x0 + tk, bot],
+               [x1, top, x1, bot], [x1, top, x1 - tk, top], [x1, bot, x1 - tk, bot]];
+    for (var i = 0; i < 6; i++) {
+      var l = o.lines[i];
+      l.setAttribute("x1", pts[i][0]); l.setAttribute("y1", pts[i][1]);
+      l.setAttribute("x2", pts[i][2]); l.setAttribute("y2", pts[i][3]);
+    }
+  }
+  function lineLabel(left, y, comps, color) {
+    var t = g("text", { x: left, y: y, "font-size": 13, fill: color,
+                        "dominant-baseline": "middle", "font-family": "Cambria Math, serif" });
+    t.textContent = "沿";
+    setVLabel(vlabel(svg, color), left + 27, y, comps);
+  }
+
+  for (var i = -4; i <= RANGE; i++) {
+    var a = px(i, -4), b = px(i, RANGE), c = px(-4, i), d = px(RANGE, i);
+    g("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: i ? C.light : C.neutral, "stroke-width": i ? 1 : 1.5 });
+    g("line", { x1: c[0], y1: c[1], x2: d[0], y2: d[1], stroke: i ? C.light : C.neutral, "stroke-width": i ? 1 : 1.5 });
+  }
+  function dline(dir, color, t0, t1) {
+    var p = px(t0 * dir[0], t0 * dir[1]), q = px(t1 * dir[0], t1 * dir[1]);
+    g("line", { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke: color,
+                "stroke-width": 1.5, "stroke-dasharray": "7 5" });
+  }
+  dline(E1, C.comp1, -2, 4.4);
+  dline(E2, C.comp2, -2, 4.4);
+  lineLabel(30, 470, [2, 1], C.comp1);
+  lineLabel(40, 338, [1, -1], C.comp2);
+
+  function seg(color, sw, dash) {
+    return g("line", { stroke: color, "stroke-width": sw, "stroke-dasharray": dash || "none" });
+  }
+  function setSeg(el, p, q) {
+    var a = px(p[0], p[1]), b = px(q[0], q[1]);
+    el.setAttribute("x1", a[0]); el.setAttribute("y1", a[1]);
+    el.setAttribute("x2", b[0]); el.setAttribute("y2", b[1]);
+  }
+  var s1thin = seg(C.comp1, 1.6, "4 3"), s2thin = seg(C.comp2, 1.6, "4 3");
+  var s1 = seg(C.comp1, 4), s2 = seg(C.comp2, 4);
+
+  function arrow(color, sw) {
+    var gg = g("g", {});
+    return { l: g("line", { stroke: color, "stroke-width": sw || 3 }, gg),
+             h: g("polygon", { fill: color }, gg) };
+  }
+  function setArrow(ar, p) {
+    var o = px(0, 0), e = px(p[0], p[1]);
+    var ang = Math.atan2(e[1] - o[1], e[0] - o[0]), L = Math.hypot(e[0] - o[0], e[1] - o[1]);
+    if (L < 2) { ar.h.setAttribute("points", ""); ar.l.setAttribute("x1", o[0]); ar.l.setAttribute("y1", o[1]);
+                 ar.l.setAttribute("x2", o[0]); ar.l.setAttribute("y2", o[1]); return; }
+    var hd = Math.min(12, L / 2);
+    ar.l.setAttribute("x1", o[0]); ar.l.setAttribute("y1", o[1]);
+    ar.l.setAttribute("x2", e[0] - hd * Math.cos(ang)); ar.l.setAttribute("y2", e[1] - hd * Math.sin(ang));
+    ar.h.setAttribute("points", e[0] + "," + e[1] + " " +
+      (e[0] + hd * Math.cos(ang + 2.7)) + "," + (e[1] + hd * Math.sin(ang + 2.7)) + " " +
+      (e[0] + hd * Math.cos(ang - 2.7)) + "," + (e[1] + hd * Math.sin(ang - 2.7)));
+  }
+  var aOut = arrow(C.output, 3.2), aIn = arrow(C.input, 2.4);
+  var knob = g("circle", { r: 9, fill: C.input, stroke: "#fff", "stroke-width": 2, cursor: "grab" });
+  var tIn = vlabel(svg, C.input), tOut = vlabel(svg, C.output);
+
+  function coords(p) {
+    // 解 p = c (2,1) + d (1,−1)：Y⁻¹ = (1/3)[1 1; 1 −2]
+    return [(p[0] + p[1]) / 3, (p[0] - 2 * p[1]) / 3];
+  }
+
+  function draw() {
+    var cd = coords(v), c = cd[0], d = cd[1];
+    var out = mul(M, v);
+    var p1 = [c * E1[0], c * E1[1]];
+    var q1 = [L1 * c * E1[0], L1 * c * E1[1]];
+    setSeg(s1thin, [0, 0], p1);
+    setSeg(s1, [0, 0], q1);
+    setSeg(s2thin, p1, [p1[0] + d * E2[0], p1[1] + d * E2[1]]);
+    setSeg(s2, q1, [q1[0] + L2 * d * E2[0], q1[1] + L2 * d * E2[1]]);
+    setArrow(aIn, v); setArrow(aOut, out);
+    var kp = px(v[0], v[1]);
+    knob.setAttribute("cx", kp[0]); knob.setAttribute("cy", kp[1]);
+    setVLabel(tIn, kp[0] - 34, kp[1] - 18, v);
+    var wp = px(out[0], out[1]);
+    setVLabel(tOut, wp[0] + 34, wp[1] + 34, out);
+    function term(k, v) { return (k < 0 ? "− " + fmt(-k) : fmt(k)) + " × " + vec(v); }
+    document.getElementById("note").innerHTML = term(c, E1)
+      + (d < 0 ? " − " : " + ") + term(Math.abs(d), E2) + "　↦　"
+      + term(L1 * c, E1) + (L2 * d < 0 ? " − " : " + ") + term(Math.abs(L2 * d), E2);
+
+    function set(id, s) { document.getElementById(id).textContent = s; }
+    function setHTML(id, s) { document.getElementById(id).innerHTML = s; }
+    setHTML("vin", vec(v));
+    setHTML("coord", vec([c, d]));
+    setHTML("scaled", vec([L1 * c, L2 * d]));
+    setHTML("vout", vec(out));
+    setHTML("direct", vec(out));
+    // k 次幂
+    var f = Math.pow(4, k);
+    var Ak = [[(2 * f + 1) / 3, (2 * f - 2) / 3], [(f - 1) / 3, (f + 2) / 3]];
+    set("kv", k);
+    set("l11", fmt(f)); set("l22", "1");
+    set("k11", fmt(Ak[0][0])); set("k12", fmt(Ak[0][1]));
+    set("k21", fmt(Ak[1][0])); set("k22", fmt(Ak[1][1]));
+    var akv = mul(Ak, v);
+    setHTML("akv", vec(akv));
+    var byEig = [f * c * E1[0] + d * E2[0], f * c * E1[1] + d * E2[1]];
+    setHTML("akv2", vec(byEig));
+    var ap = [[2 * f / 3, 2 * f / 3], [f / 3, f / 3]];
+    set("approx", fmt(ap[0][0]) + "　" + fmt(ap[0][1]) + "　" + fmt(ap[1][0]) + "　" + fmt(ap[1][1]));
+    var gap = 0;
+    for (var i2 = 0; i2 < 2; i2++) for (var j = 0; j < 2; j++) {
+      gap = Math.max(gap, Math.abs(ap[i2][j] - Ak[i2][j]));
+    }
+    set("gap", fmt(gap));
+    set("ratio", Math.abs(akv[1]) < 1e-9 ? "第二个分量是 0" : fmt(akv[0] / akv[1]));
+  }
+
+  document.getElementById("k").addEventListener("input", function () { k = +this.value; draw(); });
+  function preset(p) { return function () { v = p; draw(); }; }
+  document.getElementById("p12").innerHTML = vec([1, 2]);
+  document.getElementById("pe1").innerHTML = vec([2, 1]);
+  document.getElementById("pe2").innerHTML = vec([1, -1]);
+  document.getElementById("p01").innerHTML = vec([0, 1]);
+  document.getElementById("dir1").innerHTML = vec([2, 1]);
+  document.getElementById("p12").addEventListener("click", preset([1, 2]));
+  document.getElementById("pe1").addEventListener("click", preset([2, 1]));
+  document.getElementById("pe2").addEventListener("click", preset([1, -1]));
+  document.getElementById("p01").addEventListener("click", preset([0, 1]));
+
+  var dragging = false;
+  function move(ev) {
+    if (!dragging) return;
+    var r = svg.getBoundingClientRect();
+    var p = inv((ev.clientX - r.left) * SIZE / r.width, (ev.clientY - r.top) * SIZE / r.height);
+    var lim = 2.6, n = Math.hypot(p[0], p[1]);
+    if (n > lim) { p = [p[0] * lim / n, p[1] * lim / n]; }
+    v = [Math.round(p[0] * 20) / 20, Math.round(p[1] * 20) / 20];
+    draw();
+  }
+  svg.addEventListener("pointerdown", function (ev) { dragging = true; svg.setPointerCapture(ev.pointerId); move(ev); });
+  svg.addEventListener("pointermove", move);
+  svg.addEventListener("pointerup", function () { dragging = false; });
+  svg.addEventListener("pointercancel", function () { dragging = false; });
+
+  draw();
+})();
+</script>
+</body>
+</html>

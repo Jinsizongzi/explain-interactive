@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分块乘法</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { padding: 20px; max-width: 1180px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; }
+  .eq { display: flex; align-items: center; gap: 12px; }
+  .lab { text-align: center; font-weight: bold; margin-bottom: 4px; }
+  table.m { border-collapse: collapse; font-family: "Cambria Math", serif; font-size: 19px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); }
+  table.m td { width: 46px; height: 38px; text-align: center; }
+  table.m td.cr { border-right: 2px dashed var(--text); }
+  table.m td.cb { border-bottom: 2px dashed var(--text); }
+  table.m td.cbad { border-bottom: 2px dashed var(--bad); }
+  .hA { background: rgba(232,116,59,0.22); }
+  .hB { background: rgba(14,150,184,0.22); }
+  .hP { background: rgba(142,68,173,0.25); }
+  table.m.prod td { cursor: pointer; }
+  .op { font-size: 24px; }
+  .ctl { display: grid; grid-template-columns: 210px 160px 90px; gap: 6px 10px; align-items: center; }
+  input[type=range] { width: 160px; }
+  button { font: inherit; padding: 4px 10px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 16px; }
+  /* 行文里的小矩阵：各行上下排，两边加方括号，一列的块就是竖写的列向量 */
+  .mb { display: inline-block; vertical-align: middle; margin: 0 3px; padding: 2px 5px;
+        font-family: "Cambria Math", serif; line-height: 1.3; border-radius: 4px;
+        border-left: 2px solid currentColor; border-right: 2px solid currentColor; }
+  .mb .mr { display: block; white-space: nowrap; }
+  .mb .mc { display: inline-block; min-width: 1.4em; padding: 0 2px; text-align: center; }
+  #detail { min-height: 120px; margin-top: 8px; line-height: 1.7; }
+  .bad { color: var(--bad); } .good { color: var(--good); } .o { color: var(--output); }
+  .c1 { color: var(--comp1); } .c2 { color: var(--comp2); }
+  math { font-size: 17px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>分块乘法</h1>
+  <p class="hint">拖动滑块改变切的位置。中间维的滑块同时移动左边矩阵的竖线和右边矩阵的横线。把鼠标移到乘积的某个块上，左边亮出参与计算的一行块，右边亮出一列块，下方列出每一项。</p>
+  <div class="row">
+    <div class="card">
+      <div class="eq">
+        <div><div class="lab">左边矩阵</div><table class="m" id="tG"></table></div>
+        <div class="op">×</div>
+        <div><div class="lab">右边矩阵</div><table class="m" id="tH"></table></div>
+        <div class="op">=</div>
+        <div><div class="lab">乘积（按块算出）</div><table class="m prod" id="tP"></table></div>
+      </div>
+      <div id="check" class="num" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <div class="ctl">
+        <span>左边矩阵的横线（乘积的行）</span><input type="range" id="sr" min="0" max="3" value="2"><span id="vr"></span>
+        <span>中间维</span><input type="range" id="sm" min="0" max="3" value="2"><span id="vm"></span>
+        <span>右边矩阵的竖线（乘积的列）</span><input type="range" id="sc" min="0" max="3" value="2"><span id="vc"></span>
+        <span><label><input type="checkbox" id="free"> 右边的横线单独移动</label></span><input type="range" id="sh" min="0" max="3" value="2" disabled><span id="vh"></span>
+      </div>
+      <div style="margin-top:10px">
+        <button id="ex1">本篇的例子</button><button id="ex2">分块对角矩阵</button><button id="rnd">随机整数</button>
+      </div>
+      <p class="hint" style="margin:10px 0 4px">切法对齐时，乘积的每一块：</p>
+      <math display="block"><mrow><msub><mrow><mo>(</mo><mi mathvariant="bold">G</mi><mi mathvariant="bold">H</mi><mo>)</mo></mrow><mrow><mi>α</mi><mi>γ</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mi>β</mi></munder><msub><mi mathvariant="bold">G</mi><mrow><mi>α</mi><mi>β</mi></mrow></msub><msub><mi mathvariant="bold">H</mi><mrow><mi>β</mi><mi>γ</mi></mrow></msub></mrow></math>
+      <p class="hint" style="margin:4px 0 0">G 是左边矩阵，H 是右边矩阵；α 是行组的编号，β 是中间维的组的编号，γ 是列组的编号。</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <div id="detail" class="num"></div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var EX_G = [[3, 2, 1, 0], [1, 2, 0, 1], [0, 0, 3, 2], [0, 0, 1, 2]];
+  var EX_H = [[1, 0, 0, -1], [0, 1, 1, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+  var DG = [[3, 2, 0, 0], [1, 2, 0, 0], [0, 0, 0, -1], [0, 0, 1, 0]];
+  var G = copy(EX_G), H = copy(EX_H), hover = null;
+
+  function copy(M) { return M.map(function (r) { return r.slice(); }); }
+  function fmt(v) { return String(v).replace("-", "−"); }
+  function groups(cut) { return cut === 0 ? [[0, 4]] : [[0, cut], [cut, 4]]; }
+  function sub(M, r, c) { var o = []; for (var i = r[0]; i < r[1]; i++) o.push(M[i].slice(c[0], c[1])); return o; }
+  function mul(X, Y) {
+    var o = [];
+    for (var i = 0; i < X.length; i++) { o.push([]); for (var j = 0; j < Y[0].length; j++) { var s = 0; for (var k = 0; k < Y.length; k++) s += X[i][k] * Y[k][j]; o[i].push(s); } }
+    return o;
+  }
+  function matStr(M) {
+    return '<span class="mb">' + M.map(function (r) {
+      return '<span class="mr">' + r.map(function (v) {
+        return '<span class="mc">' + fmt(v) + "</span>";
+      }).join("") + "</span>";
+    }).join("") + "</span>";
+  }
+  function shape(M) { return M.length + " × " + (M.length ? M[0].length : 0); }
+  function val(id) { return +document.getElementById(id).value; }
+  function cutName(c, what) { return c === 0 ? "不切" : "在第 " + c + " " + what + "后"; }
+
+  function table(id, M, rcut, ccut, hl, cls, badRow) {
+    var h = "";
+    for (var i = 0; i < 4; i++) {
+      h += "<tr>";
+      for (var j = 0; j < 4; j++) {
+        var c = [];
+        if (ccut && j === ccut - 1) c.push("cr");
+        if (rcut && i === rcut - 1) c.push(badRow ? "cbad" : "cb");
+        if (hl && hl(i, j)) c.push(cls);
+        h += '<td class="' + c.join(" ") + '" data-i="' + i + '" data-j="' + j + '">' + fmt(M[i][j]) + "</td>";
+      }
+      h += "</tr>";
+    }
+    document.getElementById(id).innerHTML = h;
+  }
+
+  function render() {
+    var free = document.getElementById("free").checked;
+    var r = val("sr"), m = val("sm"), c = val("sc");
+    var hcut = free ? val("sh") : m;
+    if (!free) document.getElementById("sh").value = m;
+    document.getElementById("vr").textContent = cutName(r, "行");
+    document.getElementById("vm").textContent = cutName(m, "列");
+    document.getElementById("vc").textContent = cutName(c, "列");
+    document.getElementById("vh").textContent = cutName(hcut, "行");
+    var RG = groups(r), MG = groups(m), HG = groups(hcut), CG = groups(c);
+    var aligned = hcut === m;
+    var hv = hover;
+    table("tG", G, r, m, hv ? function (i, j) { return i >= RG[hv[0]][0] && i < RG[hv[0]][1]; } : null, "hA");
+    table("tH", H, hcut, c, hv ? function (i, j) { return j >= CG[hv[1]][0] && j < CG[hv[1]][1]; } : null, "hB", !aligned);
+    var full = mul(G, H), det = "";
+    if (aligned) {
+      table("tP", full, r, c, hv ? function (i, j) {
+        return i >= RG[hv[0]][0] && i < RG[hv[0]][1] && j >= CG[hv[1]][0] && j < CG[hv[1]][1];
+      } : null, "hP");
+      var ok = true;
+      RG.forEach(function (ra) {
+        CG.forEach(function (cg) {
+          var acc = null;
+          MG.forEach(function (mb) {
+            var t = mul(sub(G, ra, mb), sub(H, mb, cg));
+            acc = acc ? acc.map(function (row, i) { return row.map(function (v, j) { return v + t[i][j]; }); }) : t;
+          });
+          var ref = sub(full, ra, cg);
+          if (JSON.stringify(acc) !== JSON.stringify(ref)) ok = false;
+        });
+      });
+      document.getElementById("check").innerHTML = ok
+        ? '<span class="good">按块算出的乘积，和按元素算出的 4 × 4 乘积完全相同。</span>'
+        : '<span class="bad">不一致</span>';
+      if (hv) {
+        var ra = RG[hv[0]], cg = CG[hv[1]];
+        det = "乘积第 " + (hv[0] + 1) + " 行组、第 " + (hv[1] + 1) + " 列组的块（" + shape(sub(full, ra, cg)) + "）= ";
+        det += MG.map(function (mb, b) {
+          return '<span class="c1">G<sub>' + (hv[0] + 1) + (b + 1) + '</sub></span><span class="c2">H<sub>' + (b + 1) + (hv[1] + 1) + "</sub></span>";
+        }).join(" + ") + "<br>";
+        MG.forEach(function (mb, b) {
+          var X = sub(G, ra, mb), Y = sub(H, mb, cg);
+          det += "第 " + (b + 1) + " 项：" + '<span class="c1">' + matStr(X) + "</span>（" + shape(X) + "）× " +
+                 '<span class="c2">' + matStr(Y) + "</span>（" + shape(Y) + "）= " + matStr(mul(X, Y)) + "<br>";
+        });
+        det += '<span class="o">相加：' + matStr(sub(full, ra, cg)) + "</span>";
+      } else {
+        det = "把鼠标移到乘积的某个元素上，查看它所在的块怎样算出。";
+      }
+    } else {
+      table("tP", [["", "", "", ""], ["", "", "", ""], ["", "", "", ""], ["", "", "", ""]], 0, 0, null, "");
+      document.getElementById("check").innerHTML = '<span class="bad">左边矩阵切列的位置和右边矩阵切行的位置不同，无法按块相乘。</span>';
+      det = "配对检查：";
+      var lines = [];
+      MG.forEach(function (mb, b) {
+        var X = sub(G, RG[0], mb);
+        HG.forEach(function (hb, b2) {
+          if (b !== b2) return;
+          var Y = sub(H, hb, CG[0]);
+          var good = X[0].length === Y.length;
+          lines.push("第 " + (b + 1) + " 对：左边块 " + shape(X) + "，右边块 " + shape(Y) + "，" +
+            (good ? '<span class="good">中间的数相等，能乘</span>' : '<span class="bad">左边块的列数 ' + X[0].length + " 不等于右边块的行数 " + Y.length + "，不能乘</span>"));
+        });
+      });
+      if (MG.length !== HG.length) lines.push('<span class="bad">左边的列分成 ' + MG.length + " 组，右边的行分成 " + HG.length + " 组，组数都对不上</span>");
+      det += "<br>" + lines.join("<br>");
+    }
+    document.getElementById("detail").innerHTML = det;
+    document.querySelectorAll("#tP td").forEach(function (td) {
+      td.onmouseenter = function () {
+        if (!aligned) return;
+        var i = +td.dataset.i, j = +td.dataset.j;
+        var a = RG.findIndex(function (g) { return i >= g[0] && i < g[1]; });
+        var g = CG.findIndex(function (q) { return j >= q[0] && j < q[1]; });
+        if (!hover || hover[0] !== a || hover[1] !== g) { hover = [a, g]; render(); }
+      };
+    });
+  }
+
+  ["sr", "sm", "sc", "sh"].forEach(function (id) { document.getElementById(id).addEventListener("input", function () { hover = null; render(); }); });
+  document.getElementById("free").addEventListener("change", function (e) {
+    document.getElementById("sh").disabled = !e.target.checked; hover = null; render();
+  });
+  document.getElementById("ex1").onclick = function () { G = copy(EX_G); H = copy(EX_H); hover = null; render(); };
+  document.getElementById("ex2").onclick = function () { G = copy(DG); H = copy(DG); hover = null; render(); };
+  document.getElementById("rnd").onclick = function () {
+    function r4() { var o = []; for (var i = 0; i < 4; i++) { o.push([]); for (var j = 0; j < 4; j++) o[i].push(Math.floor(Math.random() * 7) - 3); } return o; }
+    G = r4(); H = r4(); hover = null; render();
+  };
+  render();
+})();
+</script>
+</body>
+</html>

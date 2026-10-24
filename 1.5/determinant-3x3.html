@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三阶行列式</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 10px; }
+  .col { flex: 1; min-width: 420px; max-width: 620px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 21px; font-weight: bold; }
+  .o { color: var(--output); } .good { color: var(--good); } .bad { color: var(--bad); } .st { color: #b7860b; }
+  button { font: inherit; padding: 4px 10px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  button.on { background: var(--light); border-color: var(--text); }
+  .inputs input { width: 52px; font: 18px "Cambria Math", serif; text-align: center; margin: 2px; padding: 3px; }
+  .terms { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+  .term { border: 1px solid var(--light); border-radius: 6px; padding: 6px; text-align: center; }
+  table.g { border-collapse: separate; border-spacing: 2px; margin: 0 auto 4px; font-family: "Cambria Math", serif; }
+  table.g td { width: 26px; height: 24px; text-align: center; color: var(--neutral); border: 1px solid var(--light); border-radius: 3px; }
+  table.g td.on { background: rgba(233, 169, 19, 0.45); color: var(--text); }
+  table.g td.off { color: #C4CCD8; }
+  table.m { border-collapse: collapse; font-family: "Cambria Math", serif; font-size: 19px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); margin: 6px 0; }
+  table.m td { padding: 3px 12px; text-align: center; }
+  table.m td.piv { outline: 2px solid var(--state); border-radius: 4px; }
+  table.m tr.hl td { background: rgba(142, 68, 173, 0.15); }
+  svg { border: 1px solid var(--light); border-radius: 8px; touch-action: none; user-select: none; cursor: grab; }
+  math { font-size: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="col">
+    <h1>三阶行列式</h1>
+    <p class="hint">修改矩阵的每个数（整数），下面三种方法同时算出行列式。右边是三列围成的平行六面体，按住拖动可以转动视角。</p>
+    <div class="card">
+      <div class="inputs" id="inputs"></div>
+      <div style="margin-top:6px">预设：
+        <button data-p="M">M = [1 1 1; 2 4 2; 3 5 4]</button>
+        <button data-p="swap">要交换行的 [0 2 1; 1 1 0; 2 0 3]</button>
+        <button data-p="flat">行列式为 0 的 [1 2 3; 2 4 6; 1 0 1]</button>
+        <button data-p="I">单位矩阵</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="label">方法一：六项公式。每一项从每行、每列各取一个元素，逆序为偶数个取正号、奇数个取负号</div>
+      <math display="block"><mrow><mo>det</mo><mo>=</mo><munder><mo>∑</mo><mi>σ</mi></munder>
+        <msup><mrow><mo>(</mo><mo>−</mo><mn>1</mn><mo>)</mo></mrow><mrow><mi>N</mi><mo>(</mo><mi>σ</mi><mo>)</mo></mrow></msup>
+        <msub><mi>g</mi><mrow><mi>σ</mi><mo>(</mo><mn>1</mn><mo>)</mo><mn>1</mn></mrow></msub>
+        <msub><mi>g</mi><mrow><mi>σ</mi><mo>(</mo><mn>2</mn><mo>)</mo><mn>2</mn></mrow></msub>
+        <msub><mi>g</mi><mrow><mi>σ</mi><mo>(</mo><mn>3</mn><mo>)</mo><mn>3</mn></mrow></msub></mrow></math>
+      <div class="terms" id="terms"></div>
+      <div class="num" id="sum6" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <div class="label">方法二：按一行展开 <span id="rowbtns"></span></div>
+      <div class="num" id="expand" style="margin-top:6px; line-height:1.8"></div>
+    </div>
+    <div class="card">
+      <div class="label">方法三：消元。一行减去另一行的倍数，行列式不变；交换两行，变号</div>
+      <div style="margin-top:6px"><button id="next">下一步</button><button id="reset">重来</button></div>
+      <div id="stepTitle" style="margin-top:6px"></div>
+      <table class="m" id="em"></table>
+      <div class="num" id="edet"></div>
+    </div>
+  </div>
+  <div>
+    <svg id="space" width="520" height="560" viewBox="0 0 520 560"></svg>
+    <div class="card" style="max-width:520px; margin-top:10px">
+      <div class="num" id="vol"></div>
+      <div class="label" id="hand"></div>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD", state: "#E9A913", neutral: "#9AA6B6", light: "#E7ECF3" };
+  var PRE = { M: [[1, 1, 1], [2, 4, 2], [3, 5, 4]], swap: [[0, 2, 1], [1, 1, 0], [2, 0, 3]],
+              flat: [[1, 2, 3], [2, 4, 6], [1, 0, 1]], I: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] };
+  var G = PRE.M.map(function (r) { return r.slice(); });
+  var expRow = 0;
+
+  // 分数：{n, d}，d > 0
+  function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { var t = a % b; a = b; b = t; } return a || 1; }
+  function F(n, d) { d = d || 1; if (d < 0) { n = -n; d = -d; } var g = gcd(n, d); return { n: n / g, d: d / g }; }
+  function sub(a, b) { return F(a.n * b.d - b.n * a.d, a.d * b.d); }
+  function mul(a, b) { return F(a.n * b.n, a.d * b.d); }
+  function div(a, b) { return F(a.n * b.d, a.d * b.n); }
+  function fs(a) { var s = a.d === 1 ? String(a.n) : a.n + "/" + a.d; return s.replace("-", "−"); }
+  function ns(v) { return String(v).replace("-", "−"); }
+  function par(v) { return v < 0 ? "(" + ns(v) + ")" : ns(v); }
+
+  var PERMS = [[0, 1, 2], [1, 2, 0], [2, 0, 1], [0, 2, 1], [1, 0, 2], [2, 1, 0]];
+  function inv(s) { var c = 0; for (var a = 0; a < 3; a++) for (var b = a + 1; b < 3; b++) if (s[a] > s[b]) c++; return c; }
+  function det3(m) {
+    var t = 0;
+    PERMS.forEach(function (s) { t += (inv(s) % 2 ? -1 : 1) * m[s[0]][0] * m[s[1]][1] * m[s[2]][2]; });
+    return t;
+  }
+  function det3F(m) {
+    var t = F(0);
+    PERMS.forEach(function (s) {
+      var p = mul(mul(m[s[0]][0], m[s[1]][1]), m[s[2]][2]);
+      t = inv(s) % 2 ? sub(t, p) : sub(t, F(-p.n, p.d));
+    });
+    return t;
+  }
+
+  // 输入框
+  var box = document.getElementById("inputs");
+  var inputs = [];
+  for (var i = 0; i < 3; i++) {
+    var line = document.createElement("div");
+    inputs.push([]);
+    for (var j = 0; j < 3; j++) {
+      var inp = document.createElement("input");
+      inp.type = "number"; inp.step = 1;
+      inp.style.color = [C.comp1, C.comp2, C.output][j];
+      (function (i, j, inp) {
+        inp.oninput = function () { var v = parseInt(inp.value, 10); G[i][j] = isNaN(v) ? 0 : v; resetElim(); update(); };
+      })(i, j, inp);
+      inputs[i].push(inp); line.appendChild(inp);
+    }
+    box.appendChild(line);
+  }
+  function fillInputs() { for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) inputs[i][j].value = G[i][j]; }
+
+  // 方法一
+  function renderTerms() {
+    var html = "", parts = [];
+    PERMS.forEach(function (s) {
+      var sign = inv(s) % 2 ? -1 : 1;
+      var vals = [G[s[0]][0], G[s[1]][1], G[s[2]][2]];
+      var prod = vals[0] * vals[1] * vals[2];
+      var t = '<div class="term"><table class="g">';
+      for (var i = 0; i < 3; i++) {
+        t += "<tr>";
+        for (var j = 0; j < 3; j++) t += '<td class="' + (s[j] === i ? "on" : "") + '">' + ns(G[i][j]) + "</td>";
+        t += "</tr>";
+      }
+      t += '</table><div class="label" style="font-size:12px">取的行 ' + (s[0] + 1) + ", " + (s[1] + 1) + ", " + (s[2] + 1) +
+           "，逆序 " + inv(s) + ' 个</div><div class="num ' + (sign > 0 ? "good" : "bad") + '">' + (sign > 0 ? "+" : "−") +
+           vals.map(par).join(" × ") + " = " + ns(sign * prod) + "</div></div>";
+      html += t; parts.push(sign * prod);
+    });
+    document.getElementById("terms").innerHTML = html;
+    document.getElementById("sum6").innerHTML = "六项相加：" + parts.map(function (v, k) {
+      return (k === 0 ? ns(v) : (v < 0 ? " − " + ns(-v) : " + " + ns(v)));
+    }).join("") + ' = <b class="o big">' + ns(det3(G)) + "</b>";
+  }
+
+  // 方法二
+  var rb = document.getElementById("rowbtns");
+  [0, 1, 2].forEach(function (r) {
+    var b = document.createElement("button");
+    b.textContent = "第 " + (r + 1) + " 行";
+    b.onclick = function () { expRow = r; renderExpand(); };
+    rb.appendChild(b);
+  });
+  function minor(m, r, c) {
+    var out = [];
+    for (var i = 0; i < 3; i++) { if (i === r) continue; var row = []; for (var j = 0; j < 3; j++) if (j !== c) row.push(m[i][j]); out.push(row); }
+    return out;
+  }
+  function renderExpand() {
+    Array.prototype.forEach.call(rb.children, function (b, k) { b.className = k === expRow ? "on" : ""; });
+    var lines = [], total = 0, r = expRow;
+    for (var c = 0; c < 3; c++) {
+      var mi = minor(G, r, c), d2 = mi[0][0] * mi[1][1] - mi[0][1] * mi[1][0];
+      var sg = (r + c) % 2 ? -1 : 1, Cij = sg * d2;
+      total += G[r][c] * Cij;
+      lines.push("g<sub>" + (r + 1) + (c + 1) + "</sub> = " + ns(G[r][c]) + "，代数余子式 C<sub>" + (r + 1) + (c + 1) + "</sub> = " +
+        (sg > 0 ? "+" : "−") + "(" + par(mi[0][0]) + " × " + par(mi[1][1]) + " − " + par(mi[0][1]) + " × " + par(mi[1][0]) + ") = " + ns(Cij));
+    }
+    lines.push("合计：" + [0, 1, 2].map(function (c) {
+      var mi = minor(G, r, c), Cij = ((r + c) % 2 ? -1 : 1) * (mi[0][0] * mi[1][1] - mi[0][1] * mi[1][0]);
+      return par(G[r][c]) + " × " + par(Cij);
+    }).join(" + ") + ' = <b class="o big">' + ns(total) + "</b>");
+    document.getElementById("expand").innerHTML = lines.join("<br>");
+  }
+
+  // 方法三：消元
+  var E;
+  function resetElim() {
+    E = { m: G.map(function (r) { return r.map(function (v) { return F(v); }); }), col: 0, row: 0, swaps: 0, pivots: [],
+          done: false, title: "原矩阵", hl: -1 };
+  }
+  function stepElim() {
+    if (E.done) return;
+    var m = E.m;
+    while (E.col < 3) {
+      var c = E.col, r = E.row;
+      if (r >= 3) break;
+      // 当前列在主元位置下面还有没消掉的数，先消
+      for (var i = r + 1; i < 3; i++) {
+        if (m[i][c].n !== 0 && m[r][c].n !== 0) {
+          var f = div(m[i][c], m[r][c]);
+          for (var j = 0; j < 3; j++) m[i][j] = sub(m[i][j], mul(f, m[r][j]));
+          E.title = "第 " + (i + 1) + " 行减去第 " + (r + 1) + " 行的 " + fs(f) + " 倍：行列式不变";
+          E.hl = i; return;
+        }
+      }
+      if (m[r][c].n === 0) {
+        for (var k = r + 1; k < 3; k++) if (m[k][c].n !== 0) break;
+        if (k < 3) {
+          var t = m[r]; m[r] = m[k]; m[k] = t; E.swaps++;
+          E.title = "主元位置是 0：交换第 " + (r + 1) + "、" + (k + 1) + " 行，行列式变号"; E.hl = r; return;
+        }
+        E.title = "第 " + (c + 1) + " 列找不到主元：行列式是 0"; E.hl = -1; E.done = true; E.zero = true; return;
+      }
+      E.pivots.push(m[r][c]); E.col++; E.row++;
+    }
+    E.done = true; E.hl = -1;
+    E.title = "消元结束：主元 " + E.pivots.map(fs).join("、") + "，交换 " + E.swaps + " 次";
+  }
+  function renderElim() {
+    document.getElementById("stepTitle").textContent = E.title;
+    var t = "";
+    for (var i = 0; i < 3; i++) {
+      t += '<tr class="' + (i === E.hl ? "hl" : "") + '">';
+      for (var j = 0; j < 3; j++) t += '<td class="' + (E.done && !E.zero && i === j ? "piv" : "") + '">' + fs(E.m[i][j]) + "</td>";
+      t += "</tr>";
+    }
+    document.getElementById("em").innerHTML = t;
+    var d = det3F(E.m), s = "当前矩阵的行列式（六项公式）= " + fs(d);
+    if (E.done) {
+      if (E.zero) s += '；原矩阵的行列式 = <b class="o big">0</b>';
+      else {
+        var p = E.pivots.reduce(function (a, b) { return mul(a, b); }, F(1));
+        s += "；原矩阵的行列式 = (−1)<sup>" + E.swaps + "</sup> × " + E.pivots.map(function (v) { return "(" + fs(v) + ")"; }).join(" × ") +
+             ' = <b class="o big">' + fs(E.swaps % 2 ? F(-p.n, p.d) : p) + "</b>";
+      }
+    }
+    document.getElementById("edet").innerHTML = s;
+  }
+  document.getElementById("next").onclick = function () { stepElim(); renderElim(); };
+  document.getElementById("reset").onclick = function () { resetElim(); renderElim(); };
+
+  // 三维视图
+  var NS = "http://www.w3.org/2000/svg", svg = document.getElementById("space");
+  var view = { az: 35, el: 18, drag: null };
+  function el(tag, attrs, parent) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; }
+  function draw3d() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var a = view.az * Math.PI / 180, e = view.el * Math.PI / 180;
+    var R = [-Math.sin(a), Math.cos(a), 0], U = [-Math.cos(a) * Math.sin(e), -Math.sin(a) * Math.sin(e), Math.cos(e)];
+    var cols = [0, 1, 2].map(function (j) { return [G[0][j], G[1][j], G[2][j]]; });
+    var ext = 1;
+    cols.forEach(function (v) { v.forEach(function (x) { ext = Math.max(ext, Math.abs(x)); }); });
+    var unit = 150 / ext, O = [260, 300];
+    function P3(v) { return [O[0] + unit * (v[0] * R[0] + v[1] * R[1] + v[2] * R[2]), O[1] - unit * (v[0] * U[0] + v[1] * U[1] + v[2] * U[2])]; }
+    function add() { var r = [0, 0, 0]; for (var k = 0; k < arguments.length; k++) for (var i = 0; i < 3; i++) r[i] += arguments[k][i]; return r; }
+    function line(p, q, color, w, dash) { var A = P3(p), B = P3(q); el("line", { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: color, "stroke-width": w, "stroke-dasharray": dash || "" }); }
+    ["e₁", "e₂", "e₃"].forEach(function (n, i) {
+      var v = [0, 0, 0]; v[i] = ext * 1.15; line([0, 0, 0], v, C.neutral, 1.2);
+      var P = P3(v); el("text", { x: P[0] + 4, y: P[1] - 4, fill: C.neutral, "font-size": 12 }).textContent = n + " 方向";
+    });
+    var o = [0, 0, 0], x = cols[0], y = cols[1], z = cols[2];
+    var faces = [[o, x, add(x, y), y], [o, x, add(x, z), z], [o, y, add(y, z), z],
+                 [x, add(x, y), add(x, y, z), add(x, z)], [y, add(x, y), add(x, y, z), add(y, z)], [z, add(x, z), add(x, y, z), add(y, z)]];
+    faces.forEach(function (f) {
+      el("polygon", { points: f.map(function (p) { return P3(p).join(","); }).join(" "), fill: C.state, "fill-opacity": 0.12, stroke: "none" });
+    });
+    [[x, add(x, y)], [x, add(x, z)], [y, add(x, y)], [y, add(y, z)], [z, add(x, z)], [z, add(y, z)],
+     [add(x, y), add(x, y, z)], [add(x, z), add(x, y, z)], [add(y, z), add(x, y, z)]].forEach(function (s) { line(s[0], s[1], C.neutral, 1); });
+    function vlabel(x0, y0, comps, name, color) {
+      var w = 38, h = 48;
+      var g = el("g", { fill: color, stroke: color, "font-family": "Cambria Math, serif" });
+      g.setAttribute("transform", "translate(" + x0 + "," + y0 + ")");
+      el("path", { d: "M 4 0 L 0 0 L 0 " + h + " L 4 " + h, fill: "none", "stroke-width": 1.4 }, g);
+      el("path", { d: "M " + (w - 4) + " 0 L " + w + " 0 L " + w + " " + h + " L " + (w - 4) + " " + h,
+                   fill: "none", "stroke-width": 1.4 }, g);
+      el("text", { x: 0, y: -6, "font-size": 12, "font-weight": "bold", stroke: "none" }, g).textContent = name;
+      comps.forEach(function (v, i) {
+        el("text", { x: 7, y: 15 + i * 16, "font-size": 13, stroke: "none" }, g).textContent = ns(v);
+      });
+    }
+    [[x, C.comp1, "第一列"], [y, C.comp2, "第二列"], [z, C.output, "第三列"]].forEach(function (t, j) {
+      line(o, t[0], t[1], 3);
+      var P = P3(t[0]); el("circle", { cx: P[0], cy: P[1], r: 4, fill: t[1] });
+      vlabel(36 + j * 160, 470, t[0], t[2], t[1]);
+    });
+    var d = det3(G);
+    document.getElementById("vol").innerHTML = "平行六面体的体积 |det| = " + ns(Math.abs(d)) + "，有向体积 det = <b class=\"o\">" + ns(d) + "</b>";
+    document.getElementById("hand").textContent = d > 0 ? "三列的顺序是右手的" : (d < 0 ? "三列的顺序不是右手的（体积取负号）" : "三列在同一个平面里，立体被压扁");
+  }
+  svg.addEventListener("pointerdown", function (e) { view.drag = [e.clientX, e.clientY, view.az, view.el]; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener("pointermove", function (e) {
+    if (!view.drag) return;
+    view.az = view.drag[2] - (e.clientX - view.drag[0]) * 0.4;
+    view.el = Math.max(-80, Math.min(80, view.drag[3] + (e.clientY - view.drag[1]) * 0.4));
+    draw3d();
+  });
+  svg.addEventListener("pointerup", function () { view.drag = null; });
+
+  function update() { renderTerms(); renderExpand(); renderElim(); draw3d(); }
+  Array.prototype.forEach.call(document.querySelectorAll("button[data-p]"), function (b) {
+    b.onclick = function () { G = PRE[b.getAttribute("data-p")].map(function (r) { return r.slice(); }); fillInputs(); resetElim(); update(); };
+  });
+  fillInputs(); resetElim(); update();
+})();
+</script>
+</body>
+</html>

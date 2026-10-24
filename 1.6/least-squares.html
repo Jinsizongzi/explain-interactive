@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>最小二乘</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; max-width: 620px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; touch-action: none; user-select: none; }
+  .panel { flex: 1; min-width: 360px; max-width: 540px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 10px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 20px; font-weight: bold; }
+  .bad { color: var(--bad); } .good { color: var(--good); } .o { color: var(--output); }
+  .st { color: #b7860b; } .i { color: var(--input); }
+  button { font: inherit; padding: 4px 10px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  input[type=range] { width: 200px; vertical-align: middle; }
+  table.m { border-collapse: collapse; font-family: "Cambria Math", serif; font-size: 18px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); }
+  table.m td { padding: 3px 12px; text-align: center; }
+  table.d { border-collapse: collapse; width: 100%; font-size: 14px; }
+  table.d th, table.d td { padding: 4px 6px; text-align: center; border-bottom: 1px solid var(--light); }
+  table.d th { color: #5b6573; font-weight: normal; }
+  .cv { display: inline-block; vertical-align: middle; margin: 0 3px; padding: 1px 5px;
+        font-family: "Cambria Math", serif; line-height: 1.25; text-align: center;
+        border-radius: 4px; border-left: 2px solid currentColor;
+        border-right: 2px solid currentColor; }
+  .cv span { display: block; }
+  math { font-size: 17px; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>最小二乘</h1>
+    <p class="hint">上下拖动三个蓝色点改它们的高度，或者用两个滑块改直线 y = x₁ + x₂ t。
+      红色竖线段是每个点和直线在竖直方向上的差，网页实时算出平方和，以及平方和最小的那条直线。</p>
+    <svg id="plot" width="560" height="520" viewBox="0 0 560 520"></svg>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div class="row"><span class="label">x₁（直线在 t = 0 处的值）</span>
+        <span><input type="range" id="c" min="-12" max="12" step="0.1" value="6">
+          <span class="num" id="cv"></span></span></div>
+      <div class="row"><span class="label">x₂（直线的斜率）</span>
+        <span><input type="range" id="d" min="-12" max="12" step="0.1" value="-6">
+          <span class="num" id="dv"></span></span></div>
+      <div style="margin-top:6px">
+        <button id="fit">跳到最小二乘解</button>
+        <button id="reset">回到 (0, 6)、(1, 0)、(2, 0)</button>
+      </div>
+    </div>
+    <div class="card">
+      <table class="d">
+        <tr><th>t</th><th>测到的 y</th><th>直线算出的值</th><th>差</th><th>差的平方</th></tr>
+        <tr><td>0</td><td class="i" id="y0"></td><td id="f0"></td><td class="bad" id="r0"></td><td class="bad" id="q0"></td></tr>
+        <tr><td>1</td><td class="i" id="y1"></td><td id="f1"></td><td class="bad" id="r1"></td><td class="bad" id="q1"></td></tr>
+        <tr><td>2</td><td class="i" id="y2"></td><td id="f2"></td><td class="bad" id="r2"></td><td class="bad" id="q2"></td></tr>
+      </table>
+      <div class="row" style="margin-top:6px"><span class="label">当前直线的平方和</span>
+        <span class="num bad big" id="sse"></span></div>
+      <div class="row"><span class="label good">最小的平方和</span>
+        <span class="num good big" id="best"></span></div>
+    </div>
+    <div class="card">
+      <div class="label">正规方程 NᵀN x = Nᵀb</div>
+      <div style="display:flex; align-items:center; gap:12px; margin-top:8px; flex-wrap:wrap">
+        <table class="m"><tr><td>3</td><td>3</td></tr><tr><td>3</td><td>5</td></tr></table>
+        <table class="m"><tr><td>x₁</td></tr><tr><td>x₂</td></tr></table>
+        <span style="font-size:20px">=</span>
+        <table class="m"><tr><td class="i" id="b1"></td></tr><tr><td class="i" id="b2"></td></tr></table>
+      </div>
+      <div class="row" style="margin-top:8px"><span class="label">Nᵀb 的两个分量</span>
+        <span class="num i" id="ntb"></span></div>
+      <div class="row"><span class="label good">最小二乘解 x</span>
+        <span class="num good big" id="sol"></span></div>
+      <div class="row"><span class="label o">投影 p = N x（直线算出的三个值）</span>
+        <span class="num o" id="proj"></span></div>
+      <div class="row"><span class="label bad">误差向量 b − p</span><span class="num bad" id="err"></span></div>
+      <div class="row"><span class="label">Nᵀ(b − p)</span><span class="num good" id="chk"></span></div>
+      <p class="hint" style="margin:8px 0 0">Nᵀ(b − p) 总是零向量：误差向量和 N 的两列都正交。
+        左边的 NᵀN 只由三个 t 决定，所以改点的高度时它不变。</p>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD", state: "#E9A913",
+            neutral: "#9AA6B6", light: "#E7ECF3", input: "#2F6FE0", bad: "#D64545", good: "#3E9B3A" };
+  var NS = "http://www.w3.org/2000/svg";
+  var W = 560, H = 520, OX = 112, OY = 260, UX = 148, UY = 26, YR = 9;
+  var svg = document.getElementById("plot");
+  var TS = [0, 1, 2];
+  var st = { y: [6, 0, 0], c: 6, d: -6, drag: -1 };
+
+  function px(t, y) { return [OX + t * UX, OY - y * UY]; }
+  function g(tag, at, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in at) e.setAttribute(k, at[k]);
+    (parent || svg).appendChild(e);
+    return e;
+  }
+  function fmt(x) {
+    if (Math.abs(x) < 1e-9) x = 0;
+    var s = x.toFixed(2);
+    if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    return s.replace("-", "−");
+  }
+  function cv(a) {
+    return '<span class="cv">' + a.map(function (x) { return "<span>" + fmt(x) + "</span>"; }).join("") + "</span>";
+  }
+  // 固定图层
+  for (var yy = -YR; yy <= YR; yy++) {
+    var a = px(-0.4, yy), b = px(2.6, yy);
+    g("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: yy ? C.light : C.neutral, "stroke-width": yy ? 1 : 1.5 });
+    if (yy % 3 === 0 && yy !== 0) {
+      var tx = g("text", { x: a[0] - 14, y: a[1] + 5, "font-size": 11, fill: C.neutral, "text-anchor": "end" });
+      tx.textContent = fmt(yy);
+    }
+  }
+  for (var k = 0; k < 3; k++) {
+    var u = px(TS[k], -YR), w2 = px(TS[k], YR);
+    g("line", { x1: u[0], y1: u[1], x2: w2[0], y2: w2[1], stroke: C.light, "stroke-width": 1 });
+    var tt = g("text", { x: u[0], y: u[1] + 20, "font-size": 12, fill: C.neutral, "text-anchor": "middle" });
+    tt.textContent = "t = " + TS[k];
+  }
+  g("line", { x1: px(0, -YR)[0], y1: px(0, -YR)[1], x2: px(0, YR)[0], y2: px(0, YR)[1],
+              stroke: C.neutral, "stroke-width": 1.5 });
+  var bestLine = g("line", { stroke: C.good, "stroke-width": 2, "stroke-dasharray": "6 4" });
+  var curLine = g("line", { stroke: C.output, "stroke-width": 2.8 });
+  var segs = [], dots = [], fits = [], labs = [];
+  for (var k2 = 0; k2 < 3; k2++) {
+    segs.push(g("line", { stroke: C.bad, "stroke-width": 3 }));
+    fits.push(g("circle", { r: 4.5, fill: C.output }));
+    dots.push(g("circle", { r: 8, fill: C.input, "fill-opacity": 0.85, cursor: "ns-resize" }));
+    labs.push(g("text", { "font-size": 13, fill: C.bad, "font-family": "Cambria Math, serif" }));
+  }
+  var legend = g("text", { x: 300, y: 496, "font-size": 13, fill: C.good, "text-anchor": "middle" });
+  legend.textContent = "绿色虚线是平方和最小的那条直线";
+
+  function solve(y) {
+    // NᵀN = [[3,3],[3,5]]，det = 6；Nᵀb = (Σy, Σ t y)
+    var s0 = y[0] + y[1] + y[2], s1 = 0 * y[0] + 1 * y[1] + 2 * y[2];
+    var x1 = (5 * s0 - 3 * s1) / 6, x2 = (-3 * s0 + 3 * s1) / 6;
+    return { ntb: [s0, s1], x: [x1, x2] };
+  }
+  function draw() {
+    var y = st.y, c = st.c, d = st.d;
+    var sol = solve(y);
+    var L = function (cc, dd) {
+      var p1 = px(-0.4, cc + dd * -0.4), p2 = px(2.6, cc + dd * 2.6);
+      return p1.concat(p2);
+    };
+    var cl = L(c, d);
+    curLine.setAttribute("x1", cl[0]); curLine.setAttribute("y1", cl[1]);
+    curLine.setAttribute("x2", cl[2]); curLine.setAttribute("y2", cl[3]);
+    var bl = L(sol.x[0], sol.x[1]);
+    bestLine.setAttribute("x1", bl[0]); bestLine.setAttribute("y1", bl[1]);
+    bestLine.setAttribute("x2", bl[2]); bestLine.setAttribute("y2", bl[3]);
+    var sse = 0, bestSse = 0, set = function (id, s) { document.getElementById(id).innerHTML = s; };
+    var proj = [], err = [];
+    for (var i = 0; i < 3; i++) {
+      var f = c + d * TS[i], r = y[i] - f;
+      sse += r * r;
+      var bf = sol.x[0] + sol.x[1] * TS[i];
+      bestSse += (y[i] - bf) * (y[i] - bf);
+      proj.push(bf); err.push(y[i] - bf);
+      var pa = px(TS[i], y[i]), pb = px(TS[i], f);
+      segs[i].setAttribute("x1", pa[0]); segs[i].setAttribute("y1", pa[1]);
+      segs[i].setAttribute("x2", pb[0]); segs[i].setAttribute("y2", pb[1]);
+      dots[i].setAttribute("cx", pa[0]); dots[i].setAttribute("cy", pa[1]);
+      fits[i].setAttribute("cx", pb[0]); fits[i].setAttribute("cy", pb[1]);
+      labs[i].setAttribute("x", pa[0] + 12);
+      labs[i].setAttribute("y", (pa[1] + pb[1]) / 2 + 4);
+      labs[i].textContent = Math.abs(r) < 1e-9 ? "" : fmt(r);
+      set("y" + i, fmt(y[i])); set("f" + i, fmt(f));
+      set("r" + i, fmt(r)); set("q" + i, fmt(r * r));
+    }
+    set("sse", fmt(sse)); set("best", fmt(bestSse));
+    set("cv", fmt(c)); set("dv", fmt(d));
+    set("b1", fmt(sol.ntb[0])); set("b2", fmt(sol.ntb[1]));
+    set("ntb", cv(sol.ntb));
+    set("sol", cv(sol.x));
+    set("proj", cv(proj));
+    set("err", cv(err));
+    var e0 = err[0] + err[1] + err[2], e1 = err[1] + 2 * err[2];
+    set("chk", cv([e0, e1]));
+  }
+
+  function yAt(ev) {
+    var r = svg.getBoundingClientRect();
+    var yy = (ev.clientY - r.top) * H / r.height;
+    var v = (OY - yy) / UY;
+    return Math.max(-YR, Math.min(YR, Math.round(v * 2) / 2));
+  }
+  svg.addEventListener("pointerdown", function (ev) {
+    var r = svg.getBoundingClientRect();
+    var x = (ev.clientX - r.left) * W / r.width, yy = (ev.clientY - r.top) * H / r.height;
+    for (var i = 0; i < 3; i++) {
+      var p = px(TS[i], st.y[i]);
+      if (Math.hypot(x - p[0], yy - p[1]) < 20) { st.drag = i; svg.setPointerCapture(ev.pointerId); return; }
+    }
+    st.drag = -1;
+  });
+  svg.addEventListener("pointermove", function (ev) {
+    if (st.drag < 0) return;
+    st.y[st.drag] = yAt(ev);
+    draw();
+  });
+  svg.addEventListener("pointerup", function () { st.drag = -1; });
+  document.getElementById("c").addEventListener("input", function () { st.c = +this.value; draw(); });
+  document.getElementById("d").addEventListener("input", function () { st.d = +this.value; draw(); });
+  document.getElementById("fit").addEventListener("click", function () {
+    var sol = solve(st.y);
+    st.c = Math.round(sol.x[0] * 10) / 10; st.d = Math.round(sol.x[1] * 10) / 10;
+    document.getElementById("c").value = st.c; document.getElementById("d").value = st.d;
+    draw();
+  });
+  document.getElementById("reset").addEventListener("click", function () {
+    st.y = [6, 0, 0]; st.c = 6; st.d = -6;
+    document.getElementById("c").value = 6; document.getElementById("d").value = -6;
+    draw();
+  });
+  draw();
+})();
+</script>
+</body>
+</html>

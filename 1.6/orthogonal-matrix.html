@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>正交矩阵</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; max-width: 620px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; touch-action: none; user-select: none; }
+  .panel { flex: 1; min-width: 350px; max-width: 520px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 10px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 20px; font-weight: bold; }
+  .c1 { color: var(--comp1); } .c2 { color: var(--comp2); } .o { color: var(--output); }
+  .good { color: var(--good); } .bad { color: var(--bad); } .st { color: #b7860b; }
+  button { font: inherit; padding: 4px 10px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  button.on { background: var(--light); border-color: var(--text); font-weight: bold; }
+  input[type=range] { width: 220px; vertical-align: middle; }
+  table.m { border-collapse: collapse; font-family: "Cambria Math", serif; font-size: 18px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); }
+  table.m td { padding: 3px 12px; text-align: center; }
+  .cv { display: inline-block; vertical-align: middle; margin: 0 3px; padding: 1px 5px;
+        font-family: "Cambria Math", serif; line-height: 1.25; text-align: center;
+        border-radius: 4px; border-left: 2px solid currentColor;
+        border-right: 2px solid currentColor; }
+  .cv span { display: block; }
+  math { font-size: 17px; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>正交矩阵</h1>
+    <p class="hint">拖动滑块改角 θ，或者在两类 2 × 2 正交矩阵之间切换。
+      橙色、青色箭头是矩阵的两列；蓝色箭头是输入向量，紫色箭头是它乘矩阵以后的结果。虚线圆是单位圆。
+      面板里的小数是约数，末位可能差 1。</p>
+    <svg id="plane" width="540" height="540" viewBox="0 0 540 540"></svg>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div class="row"><span class="label">角 θ</span>
+        <span><input type="range" id="th" min="0" max="360" step="1" value="60">
+          <span class="num" id="thv"></span></span></div>
+      <div style="margin-top:6px">
+        <button id="rot" class="on">旋转：[cosθ −sinθ; sinθ cosθ]</button>
+        <button id="ref">另一类：[cosθ sinθ; sinθ −cosθ]</button>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap">
+        <div>
+          <div class="label" style="margin-bottom:4px">矩阵 U</div>
+          <table class="m"><tr><td class="c1" id="u11"></td><td class="c2" id="u12"></td></tr>
+                           <tr><td class="c1" id="u21"></td><td class="c2" id="u22"></td></tr></table>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:4px">UᵀU</div>
+          <table class="m"><tr><td id="g11"></td><td id="g12"></td></tr>
+                           <tr><td id="g21"></td><td id="g22"></td></tr></table>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px"><span class="label c1">第一列的长度</span>
+        <span class="num c1" id="n1"></span></div>
+      <div class="row"><span class="label c2">第二列的长度</span><span class="num c2" id="n2"></span></div>
+      <div class="row"><span class="label">两列的点积</span><span class="num good" id="dc"></span></div>
+      <div class="row"><span class="label">行列式 det U</span><span class="num big" id="det"></span></div>
+      <div class="row"><span class="label">从第一列转到第二列</span><span id="dir"></span></div>
+    </div>
+    <div class="card">
+      <div class="label">长度和点积不变</div>
+      <div class="row"><span class="label"><span class="cv"><span>1</span><span>2</span></span> 和 <span class="cv"><span>2</span><span>1</span></span> 的长度的平方</span><span class="num">5　5</span></div>
+      <div class="row"><span class="label o">乘 U 以后：U<span class="cv"><span>1</span><span>2</span></span></span><span class="num o" id="ua"></span></div>
+      <div class="row"><span class="label o">乘 U 以后：U<span class="cv"><span>2</span><span>1</span></span></span><span class="num o" id="ub"></span></div>
+      <div class="row"><span class="label">两个结果的长度的平方</span><span class="num good" id="lens"></span></div>
+      <div class="row"><span class="label">变换前的点积 <span class="cv"><span>1</span><span>2</span></span> · <span class="cv"><span>2</span><span>1</span></span></span><span class="num">4</span></div>
+      <div class="row"><span class="label">变换后的点积</span><span class="num good" id="dotu"></span></div>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD", state: "#E9A913",
+            neutral: "#9AA6B6", light: "#E7ECF3", input: "#2F6FE0", good: "#3E9B3A" };
+  var NS = "http://www.w3.org/2000/svg";
+  var SIZE = 540, UNIT = 82, O = SIZE / 2, RANGE = 3;
+  var svg = document.getElementById("plane");
+  var st = { th: 60, kind: "rot" };
+
+  function px(x, y) { return [O + UNIT * x, O - UNIT * y]; }
+  function g(tag, at, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in at) e.setAttribute(k, at[k]);
+    (parent || svg).appendChild(e);
+    return e;
+  }
+  function fmt(x) {
+    if (Math.abs(x) < 1e-9) x = 0;
+    var s = x.toFixed(3);
+    if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    return s.replace("-", "−");
+  }
+  function cv(a) {
+    return '<span class="cv">' + a.map(function (x) { return "<span>" + fmt(x) + "</span>"; }).join("") + "</span>";
+  }
+  function vecLabel(color) {
+    var gg = g("g", { fill: color, stroke: color, "font-family": "Cambria Math, serif" });
+    var left = g("path", { fill: "none", "stroke-width": 1.4 }, gg);
+    var right = g("path", { fill: "none", "stroke-width": 1.4 }, gg);
+    var t1 = g("text", { "font-size": 11, stroke: "none" }, gg);
+    var t2 = g("text", { "font-size": 11, stroke: "none" }, gg);
+    return { g: gg, left: left, right: right, t1: t1, t2: t2 };
+  }
+  function setVecLabel(L, x, y, comps) {
+    var w = 50, h = 34;
+    L.g.setAttribute("transform", "translate(" + x + "," + y + ")");
+    L.left.setAttribute("d", "M 4 0 L 0 0 L 0 " + h + " L 4 " + h);
+    L.right.setAttribute("d", "M " + (w - 4) + " 0 L " + w + " 0 L " + w + " " + h + " L " + (w - 4) + " " + h);
+    L.t1.setAttribute("x", 6); L.t1.setAttribute("y", 13); L.t1.textContent = fmt(comps[0]);
+    L.t2.setAttribute("x", 6); L.t2.setAttribute("y", 30); L.t2.textContent = fmt(comps[1]);
+  }
+  for (var i = -RANGE; i <= RANGE; i++) {
+    var a = px(i, -RANGE), b = px(i, RANGE), c = px(-RANGE, i), d = px(RANGE, i);
+    g("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: i ? C.light : C.neutral, "stroke-width": i ? 1 : 1.5 });
+    g("line", { x1: c[0], y1: c[1], x2: d[0], y2: d[1], stroke: i ? C.light : C.neutral, "stroke-width": i ? 1 : 1.5 });
+  }
+  var cp = [];
+  for (var k = 0; k <= 72; k++) {
+    var t = 2 * Math.PI * k / 72;
+    cp.push(px(Math.cos(t), Math.sin(t)).join(","));
+  }
+  g("polyline", { points: cp.join(" "), fill: "none", stroke: C.neutral,
+                  "stroke-width": 1.3, "stroke-dasharray": "6 4" });
+  g("path", { d: "M " + px(0, 0) + " L " + px(1, 0) + " L " + px(1, 1) + " L " + px(0, 1) + " Z",
+              fill: "none", stroke: C.neutral, "stroke-width": 1.3, "stroke-dasharray": "5 4" });
+  var para = g("polygon", { fill: C.state, "fill-opacity": 0.22, stroke: C.state, "stroke-width": 1.4 });
+  var arcEl = g("path", { fill: "none", stroke: C.output, "stroke-width": 2 });
+  function arrow(color, sw) {
+    var gg = g("g", {});
+    return { l: g("line", { stroke: color, "stroke-width": sw || 3 }, gg),
+             h: g("polygon", { fill: color }, gg) };
+  }
+  var a1 = arrow(C.comp1), a2 = arrow(C.comp2), av = arrow(C.input, 2.4), aw = arrow(C.output, 2.4);
+  function setArrow(ar, v) {
+    var o = px(0, 0), e = px(v[0], v[1]);
+    var ang = Math.atan2(e[1] - o[1], e[0] - o[0]), L = Math.hypot(e[0] - o[0], e[1] - o[1]);
+    if (L < 2) { ar.h.setAttribute("points", ""); ar.l.setAttribute("x2", o[0]); ar.l.setAttribute("y2", o[1]); return; }
+    var hd = Math.min(11, L / 2);
+    ar.l.setAttribute("x1", o[0]); ar.l.setAttribute("y1", o[1]);
+    ar.l.setAttribute("x2", e[0] - hd * Math.cos(ang)); ar.l.setAttribute("y2", e[1] - hd * Math.sin(ang));
+    ar.h.setAttribute("points", e[0] + "," + e[1] + " " +
+      (e[0] + hd * Math.cos(ang + 2.7)) + "," + (e[1] + hd * Math.sin(ang + 2.7)) + " " +
+      (e[0] + hd * Math.cos(ang - 2.7)) + "," + (e[1] + hd * Math.sin(ang - 2.7)));
+  }
+  var L1 = vecLabel(C.comp1), L2 = vecLabel(C.comp2), LV = vecLabel(C.input), LU = vecLabel(C.output);
+
+  function draw() {
+    var r = st.th * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+    var col1 = [cs, sn];
+    var col2 = st.kind === "rot" ? [-sn, cs] : [sn, -cs];
+    var U = [[col1[0], col2[0]], [col1[1], col2[1]]];
+    setArrow(a1, col1); setArrow(a2, col2);
+    var p1 = px(1.3 * col1[0], 1.3 * col1[1]), p2 = px(1.3 * col2[0], 1.3 * col2[1]);
+    setVecLabel(L1, p1[0] + 10, p1[1] - 40, col1);
+    setVecLabel(L2, p2[0] - 38, p2[1] - 40, col2);
+    para.setAttribute("points", [px(0, 0), px(col1[0], col1[1]),
+      px(col1[0] + col2[0], col1[1] + col2[1]), px(col2[0], col2[1])].join(" "));
+    // 从第一列转到第二列的弧线（小于 180° 的一边）
+    var a0 = Math.atan2(col1[1], col1[0]), aa = Math.atan2(col2[1], col2[0]);
+    var dd = ((aa - a0 + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+    var pts = [];
+    for (var i = 0; i <= 28; i++) {
+      var th = a0 + dd * i / 28;
+      pts.push(px(0.55 * Math.cos(th), 0.55 * Math.sin(th)).join(" "));
+    }
+    arcEl.setAttribute("d", "M " + pts.join(" L "));
+    // 测试向量
+    var va = [1, 2], vb = [2, 1];
+    var ua = [U[0][0] * va[0] + U[0][1] * va[1], U[1][0] * va[0] + U[1][1] * va[1]];
+    var ub = [U[0][0] * vb[0] + U[0][1] * vb[1], U[1][0] * vb[0] + U[1][1] * vb[1]];
+    setArrow(av, va); setArrow(aw, ua);
+    var pa = px(va[0], va[1]), pw = px(1.12 * ua[0], 1.12 * ua[1]);
+    setVecLabel(LV, pa[0] + 10, pa[1] - 40, va);
+    setVecLabel(LU, pw[0] - 38, pw[1] - 40, ua);
+    var set = function (id, s) { document.getElementById(id).innerHTML = s; };
+    set("thv", st.th + "°");
+    set("u11", fmt(U[0][0])); set("u12", fmt(U[0][1]));
+    set("u21", fmt(U[1][0])); set("u22", fmt(U[1][1]));
+    var dot = function (p, q) { return p[0] * q[0] + p[1] * q[1]; };
+    set("g11", fmt(dot(col1, col1))); set("g12", fmt(dot(col1, col2)));
+    set("g21", fmt(dot(col2, col1))); set("g22", fmt(dot(col2, col2)));
+    set("n1", fmt(Math.sqrt(dot(col1, col1)))); set("n2", fmt(Math.sqrt(dot(col2, col2))));
+    set("dc", fmt(dot(col1, col2)));
+    var det = U[0][0] * U[1][1] - U[0][1] * U[1][0];
+    set("det", fmt(det));
+    set("dir", dd > 0 ? "逆时针" : "顺时针");
+    set("ua", cv(ua));
+    set("ub", cv(ub));
+    set("lens", fmt(dot(ua, ua)) + "　" + fmt(dot(ub, ub)));
+    set("dotu", fmt(dot(ua, ub)));
+  }
+  document.getElementById("th").addEventListener("input", function () { st.th = +this.value; draw(); });
+  document.getElementById("rot").addEventListener("click", function () {
+    st.kind = "rot"; this.classList.add("on"); document.getElementById("ref").classList.remove("on"); draw();
+  });
+  document.getElementById("ref").addEventListener("click", function () {
+    st.kind = "ref"; this.classList.add("on"); document.getElementById("rot").classList.remove("on"); draw();
+  });
+  draw();
+})();
+</script>
+</body>
+</html>

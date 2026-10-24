@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>复合变换与矩阵乘法</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { padding: 20px; max-width: 1180px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; }
+  .plots { display: flex; gap: 14px; flex-wrap: wrap; }
+  .plot { text-align: center; }
+  .plot div { font-size: 14px; margin-bottom: 4px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; }
+  .controls { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; align-items: flex-start; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; }
+  .mi { width: 52px; font: 16px "Cambria Math", serif; text-align: center; padding: 2px; }
+  table.m { border-collapse: collapse; font-family: "Cambria Math", serif; font-size: 20px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); }
+  table.m td { padding: 4px 12px; text-align: center; border-radius: 4px; }
+  table.m.prod td { cursor: pointer; }
+  table.m.prod td:hover { background: #F3E8F8; }
+  .hlr { background: rgba(233,169,19,0.25); }
+  .hlc { background: rgba(232,116,59,0.22); }
+  .hlp { background: rgba(142,68,173,0.25); }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .colvec { display: inline-flex; flex-direction: column; align-items: center;
+            position: relative; padding: 2px 10px; line-height: 1.25;
+            vertical-align: middle;
+            font-family: "Cambria Math", "Times New Roman", serif; }
+  .colvec::before, .colvec::after { content: ""; position: absolute; top: 0; bottom: 0;
+            width: 5px; border: 1.5px solid currentColor; }
+  .colvec::before { left: 0; border-right: none; }
+  .colvec::after { right: 0; border-left: none; }
+  .o { color: var(--output); } .x { color: var(--input); } .bad { color: var(--bad); } .good { color: var(--good); }
+  button { font: inherit; padding: 3px 9px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  button.on { background: var(--text); color: #fff; }
+  .eq { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+  math { font-size: 17px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>复合变换与矩阵乘法</h1>
+  <p class="hint">先用一个矩阵变换方格纸，再用另一个。乘积矩阵的两列就是 e₁、e₂ 经过两次变换后的位置。把鼠标移到乘积的某个元素上，看它由哪一行、哪一列算出。</p>
+  <div class="plots">
+    <div class="plot"><div>原来的方格纸</div><svg id="s0" width="360" height="360" viewBox="0 0 360 360"></svg></div>
+    <div class="plot"><div id="t1">第 1 步</div><svg id="s1" width="360" height="360" viewBox="0 0 360 360"></svg></div>
+    <div class="plot"><div id="t2">第 2 步</div><svg id="s2" width="360" height="360" viewBox="0 0 360 360"></svg></div>
+  </div>
+  <div class="controls">
+    <div class="card">
+      <div><b>A</b> =</div>
+      <table><tr><td><input class="mi" id="a11"></td><td><input class="mi" id="a12"></td></tr>
+             <tr><td><input class="mi" id="a21"></td><td><input class="mi" id="a22"></td></tr></table>
+      <div><button data-m="A" data-v="3,2,1,2">本篇的 A</button><button data-m="A" data-v="1,1,0,1">剪切</button><button data-m="A" data-v="2,0,0,0.5">缩放</button></div>
+      <div style="margin-top:8px"><b>R</b> =</div>
+      <table><tr><td><input class="mi" id="r11"></td><td><input class="mi" id="r12"></td></tr>
+             <tr><td><input class="mi" id="r21"></td><td><input class="mi" id="r22"></td></tr></table>
+      <div><button data-m="R" data-v="0,-1,1,0">旋转 90°</button><button data-m="R" data-v="1,0,0,-1">反射</button><button data-m="R" data-v="2,0,0,2">放大 2 倍</button></div>
+    </div>
+    <div class="card" style="min-width:430px">
+      <div>顺序：<button id="o1" class="on">先 A 后 R（RA）</button><button id="o2">先 R 后 A（AR）</button></div>
+      <div class="eq" id="prodrow"></div>
+      <div class="num" id="dot" style="min-height:24px"></div>
+      <p class="hint" id="cmp" style="margin:8px 0 0"></p>
+      <math display="block"><mrow><msub><mrow><mo>(</mo><mi mathvariant="bold">M</mi><mi mathvariant="bold">N</mi><mo>)</mo></mrow><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mi>k</mi></munder><msub><mi>m</mi><mrow><mi>i</mi><mi>k</mi></mrow></msub><msub><mi>n</mi><mrow><mi>k</mi><mi>j</mi></mrow></msub></mrow></math>
+      <p class="hint" style="margin:4px 0 0">M 写在左边、后做；N 写在右边、先做。乘积第 i 行第 j 列 = M 的第 i 行 · N 的第 j 列。</p>
+    </div>
+    <div class="card">
+      <div>输入 <b class="x">x</b> =
+        <span class="colvec"><input class="mi" id="x1"><input class="mi" id="x2"></span></div>
+      <div class="num" id="path" style="margin-top:8px"></div>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { input: "#2F6FE0", comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD",
+            state: "#E9A913", neutral: "#9AA6B6", grid: "#C9D3E0" };
+  var NS = "http://www.w3.org/2000/svg", SIZE = 360, O = SIZE / 2, UNIT = 18, RANGE = 10, EPS = 1e-9;
+  var st = { A: [[3, 2], [1, 2]], R: [[0, -1], [1, 0]], x: [1, 2], order: 1 };
+
+  function fmt(v) {
+    var s = (Math.abs(v) < 1e-9 ? 0 : v).toFixed(3);
+    if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    return s.replace("-", "−");
+  }
+  function par(v) { return v < 0 ? "(" + fmt(v) + ")" : fmt(v); }
+  // 列向量竖写：页面里用一对 CSS 画出来的方括号，图里用两行文字加方括号
+  function cv(v) {
+    return '<span class="colvec"><span>' + fmt(v[0]) + "</span><span>" + fmt(v[1]) + "</span></span>";
+  }
+  function svec(svg, x, y, v, color) {
+    var t1 = fmt(v[0]), t2 = fmt(v[1]);
+    var w = Math.max(t1.length, t2.length) * 8 + 10;
+    [t1, t2].forEach(function (t, i) {
+      var e = el("text", { x: x + w / 2, y: y + 6 + i * 15, "font-size": 13, fill: color,
+                           "text-anchor": "middle", "font-family": "Cambria Math, serif" }, svg);
+      e.textContent = t;
+    });
+    el("path", { d: "M" + (x + 4) + " " + y + " h-4 v30 h4", fill: "none", stroke: color,
+                 "stroke-width": 1.2 }, svg);
+    el("path", { d: "M" + (x + w - 4) + " " + y + " h4 v30 h-4", fill: "none", stroke: color,
+                 "stroke-width": 1.2 }, svg);
+  }
+  function mul(M, K) {
+    return [[M[0][0] * K[0][0] + M[0][1] * K[1][0], M[0][0] * K[0][1] + M[0][1] * K[1][1]],
+            [M[1][0] * K[0][0] + M[1][1] * K[1][0], M[1][0] * K[0][1] + M[1][1] * K[1][1]]];
+  }
+  function mv(M, v) { return [M[0][0] * v[0] + M[0][1] * v[1], M[1][0] * v[0] + M[1][1] * v[1]]; }
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e); return e;
+  }
+  function px(x, y) { return [O + UNIT * x, O - UNIT * y]; }
+  function clipLine(p, d) {
+    var lo = -1e9, hi = 1e9;
+    for (var ax = 0; ax < 2; ax++) {
+      if (Math.abs(d[ax]) < EPS) { if (Math.abs(p[ax]) > RANGE) return null; continue; }
+      var s1 = (-RANGE - p[ax]) / d[ax], s2 = (RANGE - p[ax]) / d[ax];
+      lo = Math.max(lo, Math.min(s1, s2)); hi = Math.min(hi, Math.max(s1, s2));
+    }
+    if (lo > hi) return null;
+    return [[p[0] + lo * d[0], p[1] + lo * d[1]], [p[0] + hi * d[0], p[1] + hi * d[1]]];
+  }
+  function arrow(g, v, color, sw) {
+    var s = px(0, 0), e = px(v[0], v[1]), len = Math.hypot(e[0] - s[0], e[1] - s[1]);
+    if (len < 2) return;
+    var ang = Math.atan2(e[1] - s[1], e[0] - s[0]), hl = Math.min(10, len * 0.6);
+    el("line", { x1: s[0], y1: s[1], x2: e[0] - hl * Math.cos(ang), y2: e[1] - hl * Math.sin(ang), stroke: color, "stroke-width": sw }, g);
+    el("polygon", { fill: color, points: [[e[0], e[1]], [e[0] + hl * Math.cos(ang + 2.7), e[1] + hl * Math.sin(ang + 2.7)],
+      [e[0] + hl * Math.cos(ang - 2.7), e[1] + hl * Math.sin(ang - 2.7)]].map(function (p) { return p.join(","); }).join(" ") }, g);
+  }
+  function draw(id, M, xcolor) {
+    var svg = document.getElementById(id);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var c1 = [M[0][0], M[1][0]], c2 = [M[0][1], M[1][1]];
+    function gl(p, d, color, sw) {
+      if (Math.hypot(d[0], d[1]) < EPS) return;
+      var s = clipLine(p, d); if (!s) return;
+      var a = px(s[0][0], s[0][1]), b = px(s[1][0], s[1][1]);
+      el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: color, "stroke-width": sw }, svg);
+    }
+    for (var k = -30; k <= 30; k++) { if (!k) continue; gl([k * c1[0], k * c1[1]], c2, C.grid, 1); gl([k * c2[0], k * c2[1]], c1, C.grid, 1); }
+    gl([0, 0], c1, C.neutral, 1.5); gl([0, 0], c2, C.neutral, 1.5);
+    el("polygon", { fill: C.state, "fill-opacity": 0.3, stroke: C.state, points: [[0, 0], c1, [c1[0] + c2[0], c1[1] + c2[1]], c2]
+      .map(function (p) { return px(p[0], p[1]).join(","); }).join(" ") }, svg);
+    arrow(svg, c1, C.comp1, 2.6); arrow(svg, c2, C.comp2, 2.6);
+    var v = mv(M, st.x), p = px(v[0], v[1]);
+    el("circle", { cx: p[0], cy: p[1], r: 5, fill: xcolor }, svg);
+    svec(svg, p[0] + 8, p[1] - 18, v, xcolor);
+  }
+  function matTable(M, cls, id) {
+    var h = '<table class="m ' + (cls || "") + '"' + (id ? ' id="' + id + '"' : "") + ">";
+    for (var i = 0; i < 2; i++) { h += "<tr>"; for (var j = 0; j < 2; j++) h += '<td data-i="' + i + '" data-j="' + j + '">' + fmt(M[i][j]) + "</td>"; h += "</tr>"; }
+    return h + "</table>";
+  }
+
+  function read() {
+    ["A", "R"].forEach(function (m) {
+      var low = m.toLowerCase();
+      for (var i = 0; i < 2; i++) for (var j = 0; j < 2; j++) {
+        var v = parseFloat(document.getElementById(low + (i + 1) + (j + 1)).value);
+        st[m][i][j] = isFinite(v) ? v : 0;
+      }
+    });
+    var x1 = parseFloat(document.getElementById("x1").value), x2 = parseFloat(document.getElementById("x2").value);
+    st.x = [isFinite(x1) ? x1 : 0, isFinite(x2) ? x2 : 0];
+  }
+  function write() {
+    ["A", "R"].forEach(function (m) {
+      var low = m.toLowerCase();
+      for (var i = 0; i < 2; i++) for (var j = 0; j < 2; j++) document.getElementById(low + (i + 1) + (j + 1)).value = st[m][i][j];
+    });
+    document.getElementById("x1").value = st.x[0]; document.getElementById("x2").value = st.x[1];
+  }
+
+  function update() {
+    var first = st.order === 1 ? st.A : st.R, second = st.order === 1 ? st.R : st.A;
+    var fn = st.order === 1 ? "A" : "R", sn = st.order === 1 ? "R" : "A";
+    var P = mul(second, first);
+    document.getElementById("t1").textContent = "第 1 步：用 " + fn + " 变换";
+    document.getElementById("t2").textContent = "第 2 步：再用 " + sn + " 变换（合起来是 " + sn + fn + "）";
+    draw("s0", [[1, 0], [0, 1]], C.input);
+    draw("s1", first, C.output);
+    draw("s2", P, C.output);
+    document.getElementById("prodrow").innerHTML = "<b>" + sn + fn + "</b> =" + matTable(second, "", "L") + matTable(first, "", "R") +
+      " = " + matTable(P, "prod", "P");
+    var v1 = mv(first, st.x), v2 = mv(second, v1);
+    document.getElementById("path").innerHTML = '<span class="x">' + cv(st.x) + "</span> → " + fn + " → " + cv(v1) +
+      " → " + sn + ' → <span class="o">' + cv(v2) + "</span>";
+    var other = mul(first, second);
+    var same = Math.abs(other[0][0] - P[0][0]) + Math.abs(other[0][1] - P[0][1]) + Math.abs(other[1][0] - P[1][0]) + Math.abs(other[1][1] - P[1][1]) < 1e-9;
+    document.getElementById("cmp").innerHTML = "换一个顺序得到 " + fn + sn + " = [" + fmt(other[0][0]) + "  " + fmt(other[0][1]) + "; " +
+      fmt(other[1][0]) + "  " + fmt(other[1][1]) + "]：" + (same ? '<span class="good">和 ' + sn + fn + " 相同，这两个矩阵可以交换。</span>"
+      : '<span class="bad">和 ' + sn + fn + " 不同，先后顺序影响结果。</span>");
+    document.getElementById("dot").textContent = "";
+    Array.prototype.forEach.call(document.querySelectorAll("#P td"), function (td) {
+      td.addEventListener("mouseenter", function () { hover(+td.getAttribute("data-i"), +td.getAttribute("data-j"), second, first, sn, fn); });
+      td.addEventListener("mouseleave", clearHover);
+    });
+  }
+  function clearHover() {
+    Array.prototype.forEach.call(document.querySelectorAll(".hlr,.hlc,.hlp"), function (e) { e.classList.remove("hlr", "hlc", "hlp"); });
+  }
+  function hover(i, j, L, R, ln, rn) {
+    clearHover();
+    Array.prototype.forEach.call(document.querySelectorAll("#L td[data-i='" + i + "']"), function (e) { e.classList.add("hlr"); });
+    Array.prototype.forEach.call(document.querySelectorAll("#R td[data-j='" + j + "']"), function (e) { e.classList.add("hlc"); });
+    document.querySelector("#P td[data-i='" + i + "'][data-j='" + j + "']").classList.add("hlp");
+    var val = L[i][0] * R[0][j] + L[i][1] * R[1][j];
+    document.getElementById("dot").textContent = ln + " 的第 " + (i + 1) + " 行 · " + rn + " 的第 " + (j + 1) + " 列 = " +
+      fmt(L[i][0]) + " × " + par(R[0][j]) + " + " + par(L[i][1]) + " × " + par(R[1][j]) + " = " + fmt(val);
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll("input.mi"), function (inp) {
+    inp.addEventListener("input", function () { read(); update(); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("button[data-m]"), function (b) {
+    b.addEventListener("click", function () {
+      var v = b.getAttribute("data-v").split(",").map(Number);
+      st[b.getAttribute("data-m")] = [[v[0], v[1]], [v[2], v[3]]]; write(); update();
+    });
+  });
+  document.getElementById("o1").addEventListener("click", function () { st.order = 1; this.className = "on"; document.getElementById("o2").className = ""; update(); });
+  document.getElementById("o2").addEventListener("click", function () { st.order = 2; this.className = "on"; document.getElementById("o1").className = ""; update(); });
+  write(); update();
+})();
+</script>
+</body>
+</html>

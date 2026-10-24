@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>线性组合与坐标</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; touch-action: none; user-select: none; }
+  .panel { flex: 1; min-width: 340px; max-width: 480px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; gap: 8px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  /* 列向量：分量竖着排，两边加方括号（和正文、配图的写法一致） */
+  .colvec { display: inline-flex; flex-direction: column; align-items: center;
+            position: relative; padding: 2px 10px; line-height: 1.25;
+            vertical-align: middle;
+            font-family: "Cambria Math", "Times New Roman", serif; }
+  .colvec::before, .colvec::after { content: ""; position: absolute; top: 0; bottom: 0;
+            width: 5px; border: 1.5px solid currentColor; }
+  .colvec::before { left: 0; border-right: none; }
+  .colvec::after { right: 0; border-left: none; }
+  #combo, #coordnote { text-align: right; }
+  .big { font-size: 21px; font-weight: bold; }
+  .a { color: var(--comp1); } .b { color: var(--comp2); } .v { color: var(--output); }
+  .t { color: var(--state); } .good { color: var(--good); } .bad { color: var(--bad); }
+  input[type=range] { width: 220px; }
+  button { font: inherit; padding: 4px 10px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  math { font-size: 18px; }
+  label { cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>线性组合与坐标</h1>
+    <p class="hint">拖动 <b class="a">a</b>、<b class="b">b</b> 的终点改变基向量；拖动黄色圆点改变目标。斜网格沿 <b class="a">a</b> 和 <b class="b">b</b> 画出。</p>
+    <svg id="plane" width="600" height="600" viewBox="0 0 600 600"></svg>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div>预设：
+        <button id="p-main">本篇例子</button>
+        <button id="p-dep">a 和 2a</button>
+        <button id="p-std">标准基</button>
+      </div>
+      <div style="margin-top:6px"><label><input type="checkbox" id="snap" checked> 吸附到整数格点</label></div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label">系数 <i>c</i>（乘 <b class="a">a</b>）</span>
+        <input type="range" id="c" min="-3" max="3" step="0.1" value="1"><span class="num a" id="cval"></span></div>
+      <div class="row"><span class="label">系数 <i>d</i>（乘 <b class="b">b</b>）</span>
+        <input type="range" id="d" min="-3" max="3" step="0.1" value="2"><span class="num b" id="dval"></span></div>
+      <div class="row"><span class="label">线性组合</span><span class="num" id="combo"></span></div>
+      <div class="row"><span></span><span class="num big v" id="comboval"></span></div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label">向量 <b class="a">a</b></span><span class="num a" id="va"></span></div>
+      <div class="row"><span class="label">向量 <b class="b">b</b></span><span class="num b" id="vb"></span></div>
+      <div class="row"><span class="label">行列式 <i>a</i>₁<i>b</i>₂ − <i>a</i>₂<i>b</i>₁</span><span class="num" id="det"></span></div>
+      <div class="row"><span class="label">张成</span><span id="span"></span></div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label">目标（标准基下的坐标）</span><span class="num t" id="vt"></span></div>
+      <div class="row"><span class="label">目标在基 {<b class="a">a</b>, <b class="b">b</b>} 下的坐标</span><span class="num big" id="coord"></span></div>
+      <p class="hint" id="coordnote" style="margin:6px 0"></p>
+      <button id="apply">把滑块设成这组坐标</button>
+    </div>
+    <div class="card">
+      <math display="block">
+        <mrow>
+          <mi>c</mi><mo>=</mo>
+          <mfrac><mrow><msub><mi>b</mi><mn>2</mn></msub><mi>x</mi><mo>−</mo><msub><mi>b</mi><mn>1</mn></msub><mi>y</mi></mrow>
+                 <mrow><msub><mi>a</mi><mn>1</mn></msub><msub><mi>b</mi><mn>2</mn></msub><mo>−</mo><msub><mi>a</mi><mn>2</mn></msub><msub><mi>b</mi><mn>1</mn></msub></mrow></mfrac>
+          <mo>,</mo><mspace width="1em"/>
+          <mi>d</mi><mo>=</mo>
+          <mfrac><mrow><msub><mi>a</mi><mn>1</mn></msub><mi>y</mi><mo>−</mo><msub><mi>a</mi><mn>2</mn></msub><mi>x</mi></mrow>
+                 <mrow><msub><mi>a</mi><mn>1</mn></msub><msub><mi>b</mi><mn>2</mn></msub><mo>−</mo><msub><mi>a</mi><mn>2</mn></msub><msub><mi>b</mi><mn>1</mn></msub></mrow></mfrac>
+        </mrow>
+      </math>
+      <p class="hint" style="margin:8px 0 0">目标的两个分量是 <i>x</i> 和 <i>y</i>。分母就是 <b class="a">a</b>、<b class="b">b</b> 的行列式：它不为 0 时坐标唯一；它为 0 时，<b class="a">a</b> 和 <b class="b">b</b> 共线，公式失效。</p>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { input: "#2F6FE0", comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD",
+            state: "#E9A913", bad: "#D64545", good: "#3E9B3A", neutral: "#9AA6B6",
+            light: "#E7ECF3", text: "#1F2937" };
+  var SIZE = 600, UNIT = 30, RANGE = 10;   // 画布像素、每格像素、坐标范围 ±10
+  var O = SIZE / 2, EPS = 1e-9;
+  var NS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("plane");
+  var st = { a: [2, 1], b: [1, 3], t: [4, 7], drag: null };
+  var cS = document.getElementById("c"), dS = document.getElementById("d");
+
+  function px(x, y) { return [O + UNIT * x, O - UNIT * y]; }
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || svg).appendChild(e);
+    return e;
+  }
+  function fmt(v, n) {
+    var s = (Math.abs(v) < 1e-9 ? 0 : v).toFixed(n === undefined ? 2 : n);
+    if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    return s.replace("-", "−");
+  }
+  // 列向量竖写：两个分量上下排，两边的方括号由 CSS 画出
+  function vec(v, n) {
+    return '<span class="colvec"><span>' + fmt(v[0], n) + '</span><span>'
+           + fmt(v[1], n) + '</span></span>';
+  }
+
+  // 层：张成底色、标准网格、斜网格、坐标轴、箭头
+  var spanFill = el("polygon", { fill: C.state, "fill-opacity": 0.12 });
+  var spanLine = el("line", { stroke: C.state, "stroke-width": 6, "stroke-opacity": 0.6 });
+  for (var i = -RANGE; i <= RANGE; i++) {
+    var p1 = px(i, -RANGE), p2 = px(i, RANGE), q1 = px(-RANGE, i), q2 = px(RANGE, i);
+    el("line", { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1], stroke: C.light });
+    el("line", { x1: q1[0], y1: q1[1], x2: q2[0], y2: q2[1], stroke: C.light });
+  }
+  var skew = el("g", {});
+  el("line", { x1: 0, y1: O, x2: SIZE, y2: O, stroke: C.neutral, "stroke-width": 1.5 });
+  el("line", { x1: O, y1: 0, x2: O, y2: SIZE, stroke: C.neutral, "stroke-width": 1.5 });
+  for (var k = -RANGE; k <= RANGE; k += 2) {
+    if (!k) continue;
+    var tx = el("text", { x: px(k, 0)[0], y: O + 15, "font-size": 11, fill: C.neutral, "text-anchor": "middle" });
+    tx.textContent = k;
+    var ty = el("text", { x: O - 12, y: px(0, k)[1] + 4, "font-size": 11, fill: C.neutral, "text-anchor": "middle" });
+    ty.textContent = k;
+  }
+
+  function arrow(color, name, sw) {
+    var g = el("g", {});
+    var line = el("line", { stroke: color, "stroke-width": sw }, g);
+    var head = el("polygon", { fill: color }, g);
+    var label = el("text", { "font-size": 19, "font-weight": "bold", fill: color,
+                             "font-family": "Cambria Math, serif" }, g);
+    label.textContent = name;
+    return { g: g, line: line, head: head, label: label };
+  }
+  function drawArrow(ar, s0, v, showLabel) {
+    var s = px(s0[0], s0[1]), e = px(s0[0] + v[0], s0[1] + v[1]);
+    var len = Math.hypot(e[0] - s[0], e[1] - s[1]);
+    ar.g.style.display = len < 2 ? "none" : "";
+    if (len < 2) return;
+    var ang = Math.atan2(e[1] - s[1], e[0] - s[0]), hl = Math.min(12, len * 0.6);
+    var bx = e[0] - hl * Math.cos(ang), by = e[1] - hl * Math.sin(ang);
+    ar.line.setAttribute("x1", s[0]); ar.line.setAttribute("y1", s[1]);
+    ar.line.setAttribute("x2", bx); ar.line.setAttribute("y2", by);
+    var pts = [[e[0], e[1]], [e[0] + hl * Math.cos(ang + 2.7), e[1] + hl * Math.sin(ang + 2.7)],
+               [e[0] + hl * Math.cos(ang - 2.7), e[1] + hl * Math.sin(ang - 2.7)]];
+    ar.head.setAttribute("points", pts.map(function (p) { return p.join(","); }).join(" "));
+    ar.label.style.display = showLabel ? "" : "none";
+    ar.label.setAttribute("x", e[0] + 10); ar.label.setAttribute("y", e[1] - 8);
+  }
+  var CA = arrow(C.comp1, "ca", 2.5), DB = arrow(C.comp2, "db", 2.5);
+  var RES = arrow(C.output, "ca + db", 3.5);
+  var A = arrow(C.comp1, "a", 3.5), B = arrow(C.comp2, "b", 3.5);
+  function handle(color, which) {
+    return el("circle", { r: 11, fill: color, "fill-opacity": 0.2, stroke: color,
+                          "stroke-width": 1.5, style: "cursor:grab", "data-which": which });
+  }
+  var HA = handle(C.comp1, "a"), HB = handle(C.comp2, "b");
+  var HT = el("circle", { r: 9, fill: C.state, stroke: "#fff", "stroke-width": 2,
+                          style: "cursor:grab", "data-which": "t" });
+
+  // 截取直线 p + s·dir 在画布内的线段
+  function clipLine(p, dir) {
+    var lo = -1e9, hi = 1e9;
+    for (var ax = 0; ax < 2; ax++) {
+      if (Math.abs(dir[ax]) < EPS) { if (Math.abs(p[ax]) > RANGE) return null; continue; }
+      var s1 = (-RANGE - p[ax]) / dir[ax], s2 = (RANGE - p[ax]) / dir[ax];
+      lo = Math.max(lo, Math.min(s1, s2)); hi = Math.min(hi, Math.max(s1, s2));
+    }
+    if (lo > hi) return null;
+    return [[p[0] + lo * dir[0], p[1] + lo * dir[1]], [p[0] + hi * dir[0], p[1] + hi * dir[1]]];
+  }
+
+  function drawSkew(a, b, det) {
+    while (skew.firstChild) skew.removeChild(skew.firstChild);
+    if (Math.abs(det) < EPS) return;
+    // 沿 b 方向的线：c·a + s·b（c 取整数）；沿 a 方向的线：d·b + s·a（d 取整数）
+    var lines = [[a, b, C.comp2], [b, a, C.comp1]];
+    lines.forEach(function (L) {
+      for (var n = -30; n <= 30; n++) {
+        var seg = clipLine([n * L[0][0], n * L[0][1]], L[1]);
+        if (!seg) continue;
+        var s = px(seg[0][0], seg[0][1]), e = px(seg[1][0], seg[1][1]);
+        el("line", { x1: s[0], y1: s[1], x2: e[0], y2: e[1], stroke: L[2], "stroke-opacity": 0.35 }, skew);
+      }
+    });
+  }
+
+  function update() {
+    var a = st.a, b = st.b, t = st.t;
+    var c = parseFloat(cS.value), d = parseFloat(dS.value);
+    var det = a[0] * b[1] - a[1] * b[0];
+    var ca = [c * a[0], c * a[1]], db = [d * b[0], d * b[1]];
+    var r = [ca[0] + db[0], ca[1] + db[1]];
+
+    // 张成
+    var spanEl = document.getElementById("span");
+    var aZero = Math.hypot(a[0], a[1]) < EPS, bZero = Math.hypot(b[0], b[1]) < EPS;
+    spanFill.setAttribute("points", ""); spanLine.style.display = "none";
+    if (Math.abs(det) > EPS) {
+      var cs = [[-RANGE, -RANGE], [RANGE, -RANGE], [RANGE, RANGE], [-RANGE, RANGE]];
+      spanFill.setAttribute("points", cs.map(function (p) { return px(p[0], p[1]).join(","); }).join(" "));
+      spanEl.innerHTML = '<span class="good">整个平面（a、b 线性无关）</span>';
+    } else if (aZero && bZero) {
+      spanEl.innerHTML = '<span class="bad">只有原点</span>';
+    } else {
+      var dir = aZero ? b : a, seg = clipLine([0, 0], dir);
+      if (seg) {
+        var s = px(seg[0][0], seg[0][1]), e = px(seg[1][0], seg[1][1]);
+        spanLine.setAttribute("x1", s[0]); spanLine.setAttribute("y1", s[1]);
+        spanLine.setAttribute("x2", e[0]); spanLine.setAttribute("y2", e[1]);
+        spanLine.style.display = "";
+      }
+      spanEl.innerHTML = '<span class="bad">一条直线（a、b 线性相关）</span>';
+    }
+    drawSkew(a, b, det);
+
+    drawArrow(CA, [0, 0], ca, false);
+    drawArrow(DB, ca, db, false);
+    drawArrow(RES, [0, 0], r, true);
+    drawArrow(A, [0, 0], a, true);
+    drawArrow(B, [0, 0], b, true);
+    var ea = px(a[0], a[1]), eb = px(b[0], b[1]), et = px(t[0], t[1]);
+    HA.setAttribute("cx", ea[0]); HA.setAttribute("cy", ea[1]);
+    HB.setAttribute("cx", eb[0]); HB.setAttribute("cy", eb[1]);
+    HT.setAttribute("cx", et[0]); HT.setAttribute("cy", et[1]);
+
+    document.getElementById("cval").textContent = fmt(c, 1);
+    document.getElementById("dval").textContent = fmt(d, 1);
+    document.getElementById("combo").innerHTML = fmt(c, 1) + " × " + vec(a) + " + " + fmt(d, 1) + " × " + vec(b);
+    document.getElementById("comboval").innerHTML = "= " + vec(r);
+    document.getElementById("va").innerHTML = vec(a);
+    document.getElementById("vb").innerHTML = vec(b);
+    document.getElementById("det").textContent =
+      fmt(a[0]) + " × " + fmt(b[1]) + " − " + fmt(a[1]) + " × " + fmt(b[0]) + " = " + fmt(det);
+    document.getElementById("vt").innerHTML = vec(t);
+
+    // 目标的坐标
+    var coordEl = document.getElementById("coord"), note = document.getElementById("coordnote");
+    var applyBtn = document.getElementById("apply");
+    if (Math.abs(det) > EPS) {
+      var cc = (b[1] * t[0] - b[0] * t[1]) / det, dd = (a[0] * t[1] - a[1] * t[0]) / det;
+      st.coord = [cc, dd];
+      coordEl.innerHTML = vec([cc, dd], 3);
+      coordEl.className = "num big good";
+      note.innerHTML = "验算：" + fmt(cc, 3) + " × " + vec(a) + " + " + fmt(dd, 3) + " × " + vec(b) + " = " +
+        vec([cc * a[0] + dd * b[0], cc * a[1] + dd * b[1]]) + "。坐标唯一。";
+      var inRange = Math.abs(cc) <= 3 + EPS && Math.abs(dd) <= 3 + EPS;
+      applyBtn.disabled = !inRange;
+      if (!inRange) note.innerHTML += " 坐标超出滑块范围（−3 到 3）。";
+    } else {
+      st.coord = null;
+      applyBtn.disabled = true;
+      var onLine;
+      if (aZero && bZero) onLine = Math.hypot(t[0], t[1]) < EPS;
+      else { var dv = aZero ? b : a; onLine = Math.abs(dv[0] * t[1] - dv[1] * t[0]) < EPS; }
+      coordEl.className = "num big bad";
+      if (onLine) {
+        coordEl.textContent = "不唯一";
+        note.textContent = "目标在张成的直线上，有无穷多组系数能凑出它，所以 a、b 不能当作基，坐标没有定义。";
+      } else {
+        coordEl.textContent = "无解";
+        note.textContent = "目标不在张成的直线上，任何系数都凑不出它。";
+      }
+    }
+  }
+
+  function toMath(evt) {
+    var pt = svg.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    var p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    var x = (p.x - O) / UNIT, y = (O - p.y) / UNIT;
+    if (document.getElementById("snap").checked) { x = Math.round(x); y = Math.round(y); }
+    else { x = Math.round(x * 10) / 10; y = Math.round(y * 10) / 10; }
+    return [Math.max(-RANGE, Math.min(RANGE, x)), Math.max(-RANGE, Math.min(RANGE, y))];
+  }
+  svg.addEventListener("pointerdown", function (e) {
+    var w = e.target.getAttribute && e.target.getAttribute("data-which");
+    if (w) { st.drag = w; svg.setPointerCapture(e.pointerId); }
+  });
+  svg.addEventListener("pointermove", function (e) {
+    if (!st.drag) return;
+    st[st.drag] = toMath(e);
+    update();
+  });
+  svg.addEventListener("pointerup", function () { st.drag = null; });
+  cS.addEventListener("input", update);
+  dS.addEventListener("input", update);
+  document.getElementById("apply").addEventListener("click", function () {
+    if (!st.coord) return;
+    cS.value = st.coord[0].toFixed(1); dS.value = st.coord[1].toFixed(1);
+    update();
+  });
+  function preset(a, b, t, c, d) {
+    st.a = a; st.b = b; st.t = t; cS.value = c; dS.value = d; update();
+  }
+  document.getElementById("p-main").addEventListener("click", function () { preset([2, 1], [1, 3], [4, 7], 1, 2); });
+  document.getElementById("p-dep").addEventListener("click", function () { preset([2, 1], [4, 2], [1, 3], 1, 1); });
+  document.getElementById("p-std").addEventListener("click", function () { preset([1, 0], [0, 1], [4, 7], 1, 2); });
+  update();
+})();
+</script>
+</body>
+</html>

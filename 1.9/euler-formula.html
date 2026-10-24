@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>欧拉公式</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; max-width: 620px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; user-select: none; }
+  .panel { flex: 1; min-width: 380px; max-width: 560px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 10px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 20px; font-weight: bold; }
+  .c1 { color: var(--comp1); } .c2 { color: var(--comp2); } .o { color: var(--output); }
+  .good { color: var(--good); } .bad { color: var(--bad); }
+  button { font: inherit; padding: 5px 12px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  input[type=range] { width: 220px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>欧拉公式</h1>
+    <p class="hint">上面的滑块改角 θ（用弧度），下面的滑块改步数 n。
+      紫色点是 cos θ + i sin θ，橙色折线是从 1 出发、连乘 n 次 (1 + iθ ÷ n) 走出来的路径，
+      折线的终点就是 (1 + iθ ÷ n) 的 n 次幂。n 越大，终点越贴近紫色点，折线越贴近圆弧。
+      小数是约数，末位可能差 1。</p>
+    <svg id="plane" width="540" height="540" viewBox="0 0 540 540"></svg>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div class="row"><span class="label o">角 θ（弧度）</span>
+        <span><input type="range" id="rt" min="0" max="6.283186" step="0.000001" value="1">
+          <span class="num big o" id="rtv"></span></span></div>
+      <div class="row"><span class="label c1">步数 n</span>
+        <span><input type="range" id="rn" min="1" max="1000" step="1" value="5">
+          <span class="num big c1" id="rnv"></span></span></div>
+      <div style="margin-top:6px">
+        <button id="p1">θ = 1 弧度</button>
+        <button id="p2">θ = π（半圈）</button>
+        <button id="p3">θ = π/2（四分之一圈）</button>
+        <button id="p4">θ = 2π（整圈）</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label">θ 折合度数</span><span class="num" id="deg"></span></div>
+      <div class="row"><span class="label o">cos θ + i sin θ</span>
+        <span class="num big o" id="ex"></span></div>
+      <div class="row"><span class="label c1">(1 + iθ ÷ n) 的 n 次幂</span>
+        <span class="num big c1" id="ap"></span></div>
+      <div class="row"><span class="label">两者相差</span><span class="num good" id="gap"></span></div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:6px">每一小步乘的那个数</div>
+      <div class="row"><span class="label c1">1 + iθ ÷ n</span><span class="num c1" id="stepv"></span></div>
+      <div class="row"><span class="label">它的模</span><span class="num" id="stepm"></span></div>
+      <div class="row"><span class="label">它的辐角</span><span class="num" id="stepa"></span></div>
+      <div class="row"><span class="label">辐角乘 n</span><span class="num" id="stepan"></span></div>
+      <div class="row"><span class="label">模的 n 次幂</span><span class="num" id="stepmn"></span></div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:6px">几个常用的值</div>
+      <div class="row"><span class="label">θ = π 时 cos θ + i sin θ</span>
+        <span class="num bad">−1</span></div>
+      <div class="row"><span class="label">θ = π/2 时</span><span class="num">i</span></div>
+      <div class="row"><span class="label">θ = 2π 时</span><span class="num">1</span></div>
+      <div class="row"><span class="label">θ = 0.9273 时</span><span class="num">0.6 + 0.8i</span></div>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { comp1: "#E8743B", comp2: "#0E96B8", output: "#8E44AD", neutral: "#9AA6B6",
+            light: "#E7ECF3", good: "#3E9B3A", bad: "#D64545" };
+  var NS = "http://www.w3.org/2000/svg";
+  var SIZE = 540, O = SIZE / 2, RANGE = 1.9, UNIT = O / RANGE;
+  // RANGE、UNIT 每次重画时按折线的最大模重新定，免得折线跑出画面
+  var svg = document.getElementById("plane");
+
+  function px(x, y) { return [O + UNIT * x, O - UNIT * y]; }
+  function el(tag, at) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in at) e.setAttribute(k, at[k]);
+    return e;
+  }
+  function line(x1, y1, x2, y2, col, wd, dash) {
+    var a = px(x1, y1), b = px(x2, y2);
+    var e = el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: col, "stroke-width": wd });
+    if (dash) e.setAttribute("stroke-dasharray", dash);
+    svg.appendChild(e);
+  }
+  function path(pts, col, wd, dash) {
+    var d = "M " + pts.map(function (p) {
+      var q = px(p[0], p[1]); return q[0].toFixed(1) + " " + q[1].toFixed(1); }).join(" L ");
+    var e = el("path", { d: d, fill: "none", stroke: col, "stroke-width": wd });
+    if (dash) e.setAttribute("stroke-dasharray", dash);
+    svg.appendChild(e);
+  }
+  function text(x, y, s, col, size) {
+    var p = px(x, y);
+    var e = el("text", { x: p[0], y: p[1], fill: col, "font-size": size || 12,
+      "font-family": "Cambria Math, serif", "text-anchor": "middle" });
+    e.textContent = s;
+    svg.appendChild(e);
+  }
+  function fmt(v, n) {
+    var s = (Math.abs(v) < 5e-7 ? 0 : v).toFixed(n === undefined ? 4 : n);
+    return s.replace("-", "−");
+  }
+  function cs(p, n) {
+    // 小到显示不出来的虚部按 0 算，免得出现"− 0.0000i"
+    var b = Math.abs(p[1]) < 5e-7 ? 0 : p[1];
+    return fmt(p[0], n) + (b < 0 ? " − " : " + ") + fmt(Math.abs(b), n) + "i";
+  }
+  function vals() {
+    return [+document.getElementById("rt").value, +document.getElementById("rn").value];
+  }
+
+  function draw() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var v = vals(), th = v[0], n = v[1];
+    var k;
+    // 先把折线算出来，据此定坐标范围
+    var pts = [], cur = [1, 0], st = [1, th / n];
+    for (k = 0; k <= n; k++) {
+      pts.push([cur[0], cur[1]]);
+      cur = [cur[0] * st[0] - cur[1] * st[1], cur[0] * st[1] + cur[1] * st[0]];
+    }
+    RANGE = 1.9;
+    pts.forEach(function (p) { RANGE = Math.max(RANGE, Math.hypot(p[0], p[1]) * 1.15); });
+    UNIT = O / RANGE;
+    var step = 1;
+    while (RANGE / step > 7) step *= 2;
+    var top = Math.floor(RANGE / step);
+    for (k = -top; k <= top; k++) {
+      line(k * step, -RANGE, k * step, RANGE, C.light, 1);
+      line(-RANGE, k * step, RANGE, k * step, C.light, 1);
+    }
+    line(-RANGE, 0, RANGE, 0, C.neutral, 1.5);
+    line(0, -RANGE, 0, RANGE, C.neutral, 1.5);
+    var cir = [], t;
+    for (t = 0; t <= 360; t += 3) cir.push([Math.cos(t * Math.PI / 180), Math.sin(t * Math.PI / 180)]);
+    path(cir, C.neutral, 1, "4 4");
+    // 走过的圆弧
+    var brc = [];
+    for (k = 0; k <= 200; k++) brc.push([Math.cos(th * k / 200), Math.sin(th * k / 200)]);
+    path(brc, C.output, 2.2);
+    path(pts, C.comp1, 2);
+    pts.forEach(function (p) {
+      var q = px(p[0], p[1]);
+      svg.appendChild(el("circle", { cx: q[0], cy: q[1], r: 3, fill: C.comp1 }));
+    });
+    var tgt = [Math.cos(th), Math.sin(th)];
+    var qt = px(tgt[0], tgt[1]);
+    svg.appendChild(el("circle", { cx: qt[0], cy: qt[1], r: 7, fill: C.output }));
+    var last = pts[pts.length - 1];
+    text(tgt[0] * 1.2, tgt[1] * 1.2, "cos θ + i sin θ", C.output, 13);
+    text(last[0] + 0.1, last[1] + 0.14, "折线终点", C.comp1, 12);
+    text(1.1, -0.12, "1", C.neutral, 13);
+    report(th, n, last, tgt, st);
+  }
+
+  function report(th, n, last, tgt, st) {
+    function set(id, s) { document.getElementById(id).textContent = s; }
+    document.getElementById("rtv").textContent = fmt(th, 4);
+    document.getElementById("rnv").textContent = String(n);
+    set("deg", fmt(th * 180 / Math.PI, 3) + "°");
+    set("ex", cs(tgt, 4));
+    set("ap", cs(last, 4));
+    set("gap", fmt(Math.hypot(last[0] - tgt[0], last[1] - tgt[1]), 4));
+    set("stepv", cs(st, 4));
+    var m = Math.hypot(st[0], st[1]), ar = Math.atan2(st[1], st[0]);
+    set("stepm", fmt(m, 6));
+    set("stepa", fmt(ar, 4) + " 弧度（" + fmt(ar * 180 / Math.PI, 4) + "°）");
+    set("stepan", fmt(ar * n, 4) + " 弧度　（θ 是 " + fmt(th, 4) + " 弧度）");
+    set("stepmn", fmt(Math.pow(m, n), 4) + "　（越接近 1 越好）");
+  }
+
+  function preset(t) {
+    document.getElementById("rt").value = t.toFixed(6);
+    draw();
+  }
+  document.getElementById("rt").addEventListener("input", draw);
+  document.getElementById("rn").addEventListener("input", draw);
+  document.getElementById("p1").addEventListener("click", function () { preset(1); });
+  document.getElementById("p2").addEventListener("click", function () { preset(Math.PI); });
+  document.getElementById("p3").addEventListener("click", function () { preset(Math.PI / 2); });
+  document.getElementById("p4").addEventListener("click", function () { preset(2 * Math.PI); });
+  draw();
+}());
+</script>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>复数乘法</title>
+<style>
+  :root {
+    --input: #2F6FE0; --comp1: #E8743B; --comp2: #0E96B8; --output: #8E44AD;
+    --state: #E9A913; --bad: #D64545; --good: #3E9B3A; --neutral: #9AA6B6;
+    --light: #E7ECF3; --bg: #FFFFFF; --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 15px; }
+  main { display: flex; gap: 24px; padding: 20px; flex-wrap: wrap; align-items: flex-start; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #5b6573; font-size: 13px; margin: 0 0 12px; max-width: 620px; }
+  svg { border: 1px solid var(--light); border-radius: 8px; user-select: none; touch-action: none; }
+  .panel { flex: 1; min-width: 380px; max-width: 560px; }
+  .card { border: 1px solid var(--light); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 10px; }
+  .label { color: #5b6573; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; font-size: 17px; }
+  .big { font-size: 20px; font-weight: bold; }
+  .c1 { color: var(--comp1); } .c2 { color: var(--comp2); } .o { color: var(--output); }
+  .good { color: var(--good); } .st { color: var(--state); } .in { color: var(--input); }
+  button { font: inherit; padding: 5px 12px; margin: 2px 4px 2px 0; border: 1px solid var(--neutral);
+           background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--light); }
+  input[type=number] { font: inherit; width: 70px; padding: 3px 6px; border: 1px solid var(--neutral);
+                       border-radius: 5px; }
+  table.m { border-collapse: collapse; font-family: "Cambria Math", serif; font-size: 16px;
+            border-left: 2px solid var(--text); border-right: 2px solid var(--text); }
+  table.m td { padding: 3px 10px; text-align: center; }
+  .vec { display: inline-grid; justify-items: center; position: relative; padding: 1px 6px;
+         margin: 0 3px; vertical-align: middle; line-height: 1.2;
+         border-left: 2px solid currentColor; border-right: 2px solid currentColor; }
+  .vec::before, .vec::after { content: ""; position: absolute; width: 5px; height: 2px;
+                              background: currentColor; }
+  .vec::before { top: 0; left: 0; } .vec::after { bottom: 0; right: 0; }
+  .vec span { display: block; }
+  .mats { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>复数乘法</h1>
+    <p class="hint">蓝色箭头是 z，橙色箭头是 w，紫色箭头是乘积 z w。拖动橙色圆点改变 w，
+      z 的实部和虚部可以在右边直接改。图里三条弧线依次是 z、w 和乘积的辐角，
+      具体度数写在右边的面板里。
+      坐标格子会随乘积的大小自动换档，格子上的刻度写在轴上。小数是约数，末位可能差 1。</p>
+    <svg id="plane" width="560" height="560" viewBox="0 0 560 560"></svg>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div class="row"><span class="label in">z 的实部</span>
+        <span><input type="number" id="za" value="3" step="0.5">
+          <span class="label">虚部</span>
+          <input type="number" id="zb" value="4" step="0.5"></span></div>
+      <div style="margin-top:8px">
+        <button id="b1">w = 1 + i</button>
+        <button id="b2">w = i</button>
+        <button id="b3">w = z（算 z²）</button>
+        <button id="b4">w = z 的共轭</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="label in">z</span><span class="num big in" id="zv"></span></div>
+      <div class="row"><span class="label c1">w</span><span class="num big c1" id="wv"></span></div>
+      <div class="row"><span class="label o">z w</span><span class="num big o" id="pv"></span></div>
+      <div class="row" style="margin-top:6px"><span class="label">展开的四项</span>
+        <span class="num" id="terms" style="font-size:15px"></span></div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:6px">模</div>
+      <div class="row"><span class="label in">|z|</span><span class="num in" id="mz"></span></div>
+      <div class="row"><span class="label c1">|w|</span><span class="num c1" id="mw"></span></div>
+      <div class="row"><span class="label o">|z w|</span><span class="num o" id="mp"></span></div>
+      <div class="row"><span class="label">检验 |z| × |w| 与 |z w|</span>
+        <span class="num good" id="chk1"></span></div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:6px">辐角（度）</div>
+      <div class="row"><span class="label in">z 的辐角</span><span class="num in" id="az"></span></div>
+      <div class="row"><span class="label c1">w 的辐角</span><span class="num c1" id="aw"></span></div>
+      <div class="row"><span class="label o">z w 的辐角</span><span class="num o" id="ap"></span></div>
+      <div class="row"><span class="label">检验 两个辐角相加 与 乘积的辐角</span>
+        <span class="num good" id="chk2"></span></div>
+    </div>
+    <div class="card">
+      <div class="mats">
+        <div>
+          <div class="label" style="margin-bottom:4px">乘 z 的矩阵</div>
+          <table class="m"><tr><td class="in" id="m11"></td><td class="c1" id="m12"></td></tr>
+                           <tr><td class="in" id="m21"></td><td class="c1" id="m22"></td></tr></table>
+        </div>
+        <div>
+          <div class="row"><span class="label">行列式</span><span class="num" id="det"></span></div>
+          <div class="row"><span class="label">|z| 的平方</span><span class="num" id="mz2"></span></div>
+          <div class="row"><span class="label">两列的点积</span><span class="num good" id="dotc"></span></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px"><span class="label">这个矩阵乘 w 的列向量</span>
+        <span class="num o" id="mvw"></span></div>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var C = { input: "#2F6FE0", comp1: "#E8743B", output: "#8E44AD", neutral: "#9AA6B6",
+            light: "#E7ECF3", good: "#3E9B3A" };
+  var NS = "http://www.w3.org/2000/svg";
+  var SIZE = 560, O = SIZE / 2;
+  var svg = document.getElementById("plane");
+  var w = [1, 1];           // 可以拖动的那个复数
+  var range = 8, unit = O / range;
+
+  function z() {
+    return [+document.getElementById("za").value || 0,
+            +document.getElementById("zb").value || 0];
+  }
+  function mulc(p, q) { return [p[0] * q[0] - p[1] * q[1], p[0] * q[1] + p[1] * q[0]]; }
+  function absc(p) { return Math.hypot(p[0], p[1]); }
+  function argc(p) {
+    var d = Math.atan2(p[1], p[0]) * 180 / Math.PI;
+    return d < 0 ? d + 360 : d;
+  }
+  function px(x, y) { return [O + unit * x, O - unit * y]; }
+  function el(tag, at) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in at) e.setAttribute(k, at[k]);
+    return e;
+  }
+  function line(x1, y1, x2, y2, col, wd, dash) {
+    var a = px(x1, y1), b = px(x2, y2);
+    var e = el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: col, "stroke-width": wd });
+    if (dash) e.setAttribute("stroke-dasharray", dash);
+    svg.appendChild(e);
+  }
+  function arrow(v, col, wd) {
+    if (absc(v) < 1e-9) return;
+    var a = px(0, 0), b = px(v[0], v[1]);
+    var th = Math.atan2(b[1] - a[1], b[0] - a[0]), h = 11;
+    svg.appendChild(el("line", { x1: a[0], y1: a[1], x2: b[0] - h * Math.cos(th),
+      y2: b[1] - h * Math.sin(th), stroke: col, "stroke-width": wd }));
+    var p = [b, [b[0] + h * Math.cos(th + 2.7), b[1] + h * Math.sin(th + 2.7)],
+             [b[0] + h * Math.cos(th - 2.7), b[1] + h * Math.sin(th - 2.7)]];
+    svg.appendChild(el("polygon", { points: p.map(function (q) {
+      return q[0].toFixed(1) + "," + q[1].toFixed(1); }).join(" "), fill: col }));
+  }
+  function arc(r, a0, a1, col) {
+    var pts = [], n = 60, k;
+    for (k = 0; k <= n; k++) {
+      var t = (a0 + (a1 - a0) * k / n) * Math.PI / 180;
+      pts.push(px(r * Math.cos(t), r * Math.sin(t)));
+    }
+    svg.appendChild(el("path", { d: "M " + pts.map(function (q) {
+      return q[0].toFixed(1) + " " + q[1].toFixed(1); }).join(" L "),
+      fill: "none", stroke: col, "stroke-width": 1.3 }));
+  }
+  function text(x, y, s, col, size) {
+    var p = px(x, y);
+    var e = el("text", { x: p[0], y: p[1], fill: col, "font-size": size || 12,
+      "font-family": "Cambria Math, serif", "text-anchor": "middle" });
+    e.textContent = s;
+    svg.appendChild(e);
+  }
+  function fmt(v, n) {
+    var s = (Math.abs(v) < 5e-5 ? 0 : v).toFixed(n === undefined ? 3 : n);
+    return s.replace("-", "−");
+  }
+  function sh(v) {
+    // 整数不写小数点，其余保留两位
+    return Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)).replace("-", "−")
+                                              : fmt(v, 2);
+  }
+  function cs(p) {
+    var a = fmt(p[0], 3), b = Math.abs(p[1]);
+    return a + (p[1] < 0 ? " − " : " + ") + fmt(b, 3) + "i";
+  }
+
+  function draw() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var zz = z(), pp = mulc(zz, w);
+    range = Math.max(absc(zz), absc(w), absc(pp), 2) * 1.2;
+    unit = O / range;
+    var step = 1;
+    while (range / step > 7) step *= 2;
+    var top = Math.floor(range / step), k;
+    for (k = -top; k <= top; k++) {
+      line(k * step, -range, k * step, range, C.light, 1);
+      line(-range, k * step, range, k * step, C.light, 1);
+    }
+    line(-range, 0, range, 0, C.neutral, 1.5);
+    line(0, -range, 0, range, C.neutral, 1.5);
+    for (k = -top; k <= top; k++) if (k) {
+      text(k * step, -0.05 * range, String(k * step).replace("-", "−"), C.neutral, 11);
+      text(-0.05 * range, k * step, String(k * step).replace("-", "−"), C.neutral, 11);
+    }
+    // 单位圆，便于看出模是放大还是缩小
+    var cir = [], t;
+    for (t = 0; t <= 360; t += 4) cir.push(px(Math.cos(t * Math.PI / 180), Math.sin(t * Math.PI / 180)));
+    svg.appendChild(el("path", { d: "M " + cir.map(function (q) {
+      return q[0].toFixed(1) + " " + q[1].toFixed(1); }).join(" L "),
+      fill: "none", stroke: C.neutral, "stroke-width": 1, "stroke-dasharray": "4 4" }));
+    arc(range * 0.30, 0, argc(zz), C.input);
+    arc(range * 0.22, 0, argc(w), C.comp1);
+    arc(range * 0.38, 0, argc(pp), C.output);
+    arrow(zz, C.input, 3);
+    arrow(w, C.comp1, 3);
+    arrow(pp, C.output, 3);
+    var pw = px(w[0], w[1]);
+    svg.appendChild(el("circle", { cx: pw[0], cy: pw[1], r: 7, fill: C.comp1,
+      stroke: "#fff", "stroke-width": 2 }));
+    text(zz[0], zz[1] + 0.07 * range, "z", C.input, 15);
+    text(w[0], w[1] + 0.07 * range, "w", C.comp1, 15);
+    text(pp[0], pp[1] + 0.07 * range, "z w", C.output, 15);
+    report(zz, pp);
+  }
+
+  function report(zz, pp) {
+    function set(id, s) { document.getElementById(id).textContent = s; }
+    set("zv", cs(zz)); set("wv", cs(w)); set("pv", cs(pp));
+    function par(v, suf) {
+      var s = fmt(v, 3) + (suf || "");
+      return v < 0 ? "(" + s + ")" : s;
+    }
+    set("terms", par(zz[0]) + "×" + par(w[0]) + " + " + par(zz[0]) + "×" + par(w[1], "i")
+      + " + " + par(zz[1], "i") + "×" + par(w[0]) + " + " + par(zz[1], "i") + "×"
+      + par(w[1], "i"));
+    var mz = absc(zz), mw = absc(w), mp = absc(pp);
+    set("mz", fmt(mz, 4)); set("mw", fmt(mw, 4)); set("mp", fmt(mp, 4));
+    set("chk1", fmt(mz * mw, 4) + " 与 " + fmt(mp, 4)
+      + (Math.abs(mz * mw - mp) < 5e-5 ? "　相等" : ""));
+    var az = argc(zz), aw = argc(w), ap = argc(pp);
+    set("az", fmt(az, 3) + "°"); set("aw", fmt(aw, 3) + "°"); set("ap", fmt(ap, 3) + "°");
+    var sum = az + aw, red = sum >= 360 ? sum - 360 : sum;
+    set("chk2", fmt(sum, 3) + "° → " + fmt(red, 3) + "° 与 " + fmt(ap, 3) + "°"
+      + (Math.abs(red - ap) < 5e-4 || Math.abs(red - ap - 360) < 5e-4 ? "　相等" : ""));
+    set("m11", sh(zz[0])); set("m12", sh(-zz[1]));
+    set("m21", sh(zz[1])); set("m22", sh(zz[0]));
+    set("det", sh(zz[0] * zz[0] + zz[1] * zz[1]));
+    set("mz2", sh(mz * mz));
+    set("dotc", sh(zz[0] * (-zz[1]) + zz[1] * zz[0]));
+    document.getElementById("mvw").innerHTML =
+      '<span class="vec"><span>' + fmt(zz[0] * w[0] - zz[1] * w[1]) + '</span><span>'
+      + fmt(zz[1] * w[0] + zz[0] * w[1]) + '</span></span>';
+  }
+
+  function pick(ev) {
+    var r = svg.getBoundingClientRect();
+    var x = (ev.clientX - r.left) * SIZE / r.width;
+    var y = (ev.clientY - r.top) * SIZE / r.height;
+    w = [(x - O) / unit, (O - y) / unit];
+    w = [Math.round(w[0] * 20) / 20, Math.round(w[1] * 20) / 20];
+    draw();
+  }
+  var dragging = false;
+  svg.addEventListener("pointerdown", function (ev) {
+    dragging = true; svg.setPointerCapture(ev.pointerId); pick(ev);
+  });
+  svg.addEventListener("pointermove", function (ev) { if (dragging) pick(ev); });
+  svg.addEventListener("pointerup", function () { dragging = false; });
+  document.getElementById("za").addEventListener("input", draw);
+  document.getElementById("zb").addEventListener("input", draw);
+  document.getElementById("b1").addEventListener("click", function () { w = [1, 1]; draw(); });
+  document.getElementById("b2").addEventListener("click", function () { w = [0, 1]; draw(); });
+  document.getElementById("b3").addEventListener("click", function () { w = z(); draw(); });
+  document.getElementById("b4").addEventListener("click", function () {
+    var zz = z(); w = [zz[0], -zz[1]]; draw();
+  });
+  draw();
+}());
+</script>
+</body>
+</html>
