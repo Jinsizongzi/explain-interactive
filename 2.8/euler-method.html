@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>欧拉法：步长怎样影响结果</title>
+<style>
+  :root {
+    --input: #2F6FE0;
+    --comp1: #E8743B;
+    --comp2: #0E96B8;
+    --output: #8E44AD;
+    --state: #E9A913;
+    --bad: #D64545;
+    --good: #3E9B3A;
+    --neutral: #9AA6B6;
+    --light: #E7ECF3;
+    --bg: #FFFFFF;
+    --text: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  .sub { color: var(--neutral); font-size: 14px; margin-bottom: 18px; }
+  .wrap { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+  .left { flex: 0 0 auto; }
+  .right { flex: 1 1 360px; min-width: 340px; }
+  .controls { margin: 14px 0 0; }
+  .row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  label { font-size: 14px; }
+  input[type=range] { width: 300px; }
+  button {
+    font-family: inherit;
+    font-size: 13px;
+    padding: 5px 12px;
+    border: 1px solid var(--neutral);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover { background: var(--light); }
+  button.on { border-color: var(--input); color: var(--input); }
+  .card {
+    border: 1px solid var(--light);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+  }
+  .big { font-size: 17px; }
+  .num { font-family: "Cambria Math", "Times New Roman", serif; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 5px 8px; text-align: right; }
+  th { background: var(--light); font-weight: bold; }
+  td:first-child, th:first-child { text-align: center; }
+  tr:nth-child(even) td { background: #F7F9FC; }
+  .note { color: var(--neutral); font-size: 13px; margin-top: 8px; }
+  .warn { color: var(--bad); }
+  .ok { color: var(--good); }
+</style>
+</head>
+<body>
+
+<h1>欧拉法：步长怎样影响结果</h1>
+<div class="sub">方程 y′ = −0.5y，初值 y(0) = 4，精确解 y = 4e<sup>−0.5t</sup>。拖动步长，看折线怎样变。</div>
+
+<div class="wrap">
+  <div class="left">
+    <svg id="plot" width="600" height="430" role="img" aria-label="欧拉法折线和精确曲线"></svg>
+    <div class="controls">
+      <div class="row">
+        <label for="hs">步长 h</label>
+        <input id="hs" type="range" min="0" max="10" step="1" value="6">
+        <span class="num big" id="hval">1</span>
+      </div>
+      <div class="row" id="quick"></div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="card">
+      <div class="big">每步乘的数　1 − 0.5h = <span class="num" id="factor"></span></div>
+      <div id="verdict" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <div class="big" id="attwo"></div>
+      <div class="note" id="attwonote"></div>
+    </div>
+    <div class="card">
+      <table id="steps">
+        <thead><tr><th>步号 k</th><th>t<sub>k</sub></th><th>欧拉法 y<sub>k</sub></th><th>精确值</th><th>差</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="note" id="tabnote"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+var HS = [0.05, 0.1, 0.125, 0.2, 0.25, 0.5, 1, 2, 2.5, 4, 5];
+var QUICK = [0.1, 0.5, 1, 2, 4, 5];
+var Y0 = 4;
+var S = -0.5;
+
+// 步长大的时候画得远一点，才看得出正负交替越跳越大
+function tmaxFor(h) { return h >= 2 ? 16 : 6; }
+
+function exact(t) { return Y0 * Math.exp(S * t); }
+
+function eulerPts(h) {
+  var tmax = tmaxFor(h), pts = [[0, Y0]], t = 0, y = Y0;
+  while (t + h <= tmax + 1e-9 && pts.length < 400) {
+    y = y + h * (S * y);
+    t = t + h;
+    pts.push([t, y]);
+  }
+  return pts;
+}
+
+function fmt(v, nd) {
+  if (nd === undefined) nd = 6;
+  var s = Math.abs(v) < 1e-12 ? (0).toFixed(nd) : v.toFixed(nd);
+  if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+  return s.replace("-", "−");
+}
+
+// ---- 画图 ----
+var W = 600, H = 430, L = 56, R = 24, T = 20, B = 44;
+
+function svgEl(name, attrs) {
+  var e = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (var k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+function niceRange(pts) {
+  var lo = 0, hi = Y0;
+  for (var i = 0; i < pts.length; i++) {
+    if (pts[i][1] < lo) lo = pts[i][1];
+    if (pts[i][1] > hi) hi = pts[i][1];
+  }
+  var pad = Math.max(1, (hi - lo) * 0.12);
+  return [Math.floor(lo - pad), Math.ceil(hi + pad)];
+}
+
+function draw(h) {
+  var svg = document.getElementById("plot");
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  var tmax = tmaxFor(h);
+  var pts = eulerPts(h);
+  var yr = niceRange(pts);
+  var x2p = function (t) { return L + (W - L - R) * t / tmax; };
+  var y2p = function (y) { return H - B - (H - T - B) * (y - yr[0]) / (yr[1] - yr[0]); };
+
+  // 网格和坐标轴
+  var k, tstep = tmax > 8 ? 2 : 1;
+  for (k = 0; k <= tmax; k += tstep) {
+    svg.appendChild(svgEl("line", {x1: x2p(k), y1: T, x2: x2p(k), y2: H - B,
+      stroke: "var(--light)", "stroke-width": 1}));
+    svg.appendChild(svgEl("text", {x: x2p(k), y: H - B + 18, "text-anchor": "middle",
+      "font-size": 12, fill: "var(--neutral)"})).textContent = String(k);
+  }
+  var step = Math.max(1, Math.round((yr[1] - yr[0]) / 8));
+  for (k = Math.ceil(yr[0] / step) * step; k <= yr[1]; k += step) {
+    svg.appendChild(svgEl("line", {x1: L, y1: y2p(k), x2: W - R, y2: y2p(k),
+      stroke: "var(--light)", "stroke-width": 1}));
+    svg.appendChild(svgEl("text", {x: L - 10, y: y2p(k) + 4, "text-anchor": "end",
+      "font-size": 12, fill: "var(--neutral)"})).textContent = fmt(k, 0);
+  }
+  svg.appendChild(svgEl("line", {x1: L, y1: y2p(0), x2: W - R, y2: y2p(0),
+    stroke: "var(--neutral)", "stroke-width": 1.4}));
+  svg.appendChild(svgEl("line", {x1: L, y1: T, x2: L, y2: H - B,
+    stroke: "var(--neutral)", "stroke-width": 1.4}));
+  svg.appendChild(svgEl("text", {x: W - R + 2, y: y2p(0) + 4, "font-size": 13,
+    fill: "var(--text)"})).textContent = "t";
+
+  // 精确解
+  var d = "", i;
+  for (i = 0; i <= 240; i++) {
+    var t = tmax * i / 240;
+    d += (i ? " L " : "M ") + x2p(t).toFixed(1) + " " + y2p(exact(t)).toFixed(1);
+  }
+  svg.appendChild(svgEl("path", {d: d, fill: "none", stroke: "var(--input)",
+    "stroke-width": 2.4}));
+
+  // 欧拉折线
+  var color = Math.abs(1 + S * h) < 1 ? "var(--comp1)" : "var(--bad)";
+  d = "";
+  for (i = 0; i < pts.length; i++) {
+    d += (i ? " L " : "M ") + x2p(pts[i][0]).toFixed(1) + " " + y2p(pts[i][1]).toFixed(1);
+  }
+  svg.appendChild(svgEl("path", {d: d, fill: "none", stroke: color,
+    "stroke-width": 2.4, "stroke-linejoin": "round"}));
+  var r = pts.length > 40 ? 2.2 : 4.5;
+  for (i = 0; i < pts.length; i++) {
+    svg.appendChild(svgEl("circle", {cx: x2p(pts[i][0]), cy: y2p(pts[i][1]), r: r,
+      fill: color}));
+  }
+
+  // 图例
+  svg.appendChild(svgEl("line", {x1: W - 210, y1: T + 10, x2: W - 180, y2: T + 10,
+    stroke: "var(--input)", "stroke-width": 3}));
+  svg.appendChild(svgEl("text", {x: W - 174, y: T + 14, "font-size": 13,
+    fill: "var(--text)"})).textContent = "精确解";
+  svg.appendChild(svgEl("line", {x1: W - 118, y1: T + 10, x2: W - 88, y2: T + 10,
+    stroke: color, "stroke-width": 3}));
+  svg.appendChild(svgEl("text", {x: W - 82, y: T + 14, "font-size": 13,
+    fill: "var(--text)"})).textContent = "欧拉法";
+  return pts;
+}
+
+// ---- 右边的数字 ----
+function refresh() {
+  var h = HS[Number(document.getElementById("hs").value)];
+  document.getElementById("hval").textContent = fmt(h);
+  var pts = draw(h);
+  var q = 1 + S * h;
+  document.getElementById("factor").textContent = fmt(q);
+
+  var v = document.getElementById("verdict");
+  if (Math.abs(q) < 1) {
+    v.className = "ok";
+    v.textContent = "这个数的绝对值小于 1：每一步都把上一步的值按同一个比例缩小，折线一直在往 0 靠。";
+  } else if (Math.abs(q) === 1) {
+    v.className = "warn";
+    v.textContent = "这个数正好是 −1：折线在 4 和 −4 之间来回跳，永远停不下来。";
+  } else {
+    v.className = "warn";
+    v.textContent = "这个数的绝对值大于 1：折线正负交替，而且越来越大，和一直减小的精确解完全不同。";
+  }
+
+  var n = 2 / h;
+  var at = document.getElementById("attwo");
+  var note = document.getElementById("attwonote");
+  if (Math.abs(n - Math.round(n)) < 1e-9) {
+    n = Math.round(n);
+    var y = Y0 * Math.pow(q, n);
+    at.innerHTML = "走 " + n + " 步到 t = 2：<span class=\"num\">" + fmt(y) +
+      "</span>　误差 <span class=\"num\">" + fmt(exact(2) - y) + "</span>";
+    note.textContent = "精确值 y(2) = " + fmt(exact(2)) + "。步长减半，误差大约也减半。";
+  } else {
+    at.textContent = "这个步长的步点落不到 t = 2 上。";
+    note.textContent = "步点在 0、" + fmt(h) + "、" + fmt(2 * h) + "、……，跨过了 t = 2。";
+  }
+
+  var tb = document.querySelector("#steps tbody");
+  while (tb.firstChild) tb.removeChild(tb.firstChild);
+  var m = Math.min(pts.length, 9);
+  for (var i = 0; i < m; i++) {
+    var tr = document.createElement("tr");
+    var e = exact(pts[i][0]);
+    var cells = [String(i), fmt(pts[i][0]), fmt(pts[i][1]), fmt(e), fmt(e - pts[i][1])];
+    for (var j = 0; j < cells.length; j++) {
+      var td = document.createElement("td");
+      td.textContent = cells[j];
+      if (j > 0) td.className = "num";
+      tr.appendChild(td);
+    }
+    tb.appendChild(tr);
+  }
+  document.getElementById("tabnote").textContent = pts.length > m
+    ? "只列前 " + m + " 步，这个步长一共走了 " + (pts.length - 1) + " 步。"
+    : "一共走了 " + (pts.length - 1) + " 步。";
+
+  var bs = document.querySelectorAll("#quick button");
+  for (var b = 0; b < bs.length; b++) {
+    bs[b].className = Number(bs[b].dataset.h) === h ? "on" : "";
+  }
+}
+
+(function init() {
+  var box = document.getElementById("quick");
+  for (var i = 0; i < QUICK.length; i++) {
+    var btn = document.createElement("button");
+    btn.textContent = "h = " + fmt(QUICK[i]);
+    btn.dataset.h = QUICK[i];
+    btn.onclick = (function (v) {
+      return function () {
+        document.getElementById("hs").value = HS.indexOf(v);
+        refresh();
+      };
+    })(QUICK[i]);
+    box.appendChild(btn);
+  }
+  document.getElementById("hs").oninput = refresh;
+  refresh();
+})();
+</script>
+
+</body>
+</html>

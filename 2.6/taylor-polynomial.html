@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>泰勒多项式贴得有多紧</title>
+<style>
+  :root{
+    --input:#2F6FE0; --comp1:#E8743B; --comp2:#0E96B8; --output:#8E44AD;
+    --state:#E9A913; --bad:#D64545; --good:#3E9B3A; --neutral:#9AA6B6;
+    --light:#E7ECF3; --bg:#FFFFFF; --text:#1F2937;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:var(--bg);color:var(--text);
+       font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.7}
+  .wrap{max-width:1040px;margin:0 auto}
+  h1{font-size:21px;margin:0 0 6px}
+  .lead{color:#55606e;margin:0 0 18px}
+  .panel{border:1px solid var(--light);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+  .row{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-bottom:12px}
+  .row:last-child{margin-bottom:0}
+  label{min-width:92px;color:#55606e}
+  input[type=range]{flex:1 1 240px;min-width:200px;accent-color:var(--input)}
+  .val{font-family:"Cambria Math","Times New Roman",serif;font-size:17px;min-width:92px}
+  button{border:1px solid var(--neutral);background:#fff;color:var(--text);
+         border-radius:7px;padding:5px 12px;font-size:14px;cursor:pointer;
+         font-family:inherit}
+  button:hover{background:var(--light)}
+  button.on{border-color:var(--input);color:var(--input);background:#eef3fd}
+  table{border-collapse:collapse;width:100%;font-size:15px}
+  th,td{border:1px solid var(--light);padding:7px 10px;text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  th{background:#f5f7fa;font-weight:600}
+  td.num{font-family:"Cambria Math","Times New Roman",serif;font-size:16px}
+  .big{font-size:17px}
+  .ok{color:var(--good)} .no{color:var(--bad)}
+  .note{color:#55606e;font-size:14px;margin-top:10px}
+  svg{display:block;width:100%;height:auto}
+  sup{font-size:0.75em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>泰勒多项式贴得有多紧</h1>
+<p class="lead">选一个函数，调阶数和自变量，看多项式算出的值、真值和两者的差。展开点一律取 0。</p>
+
+<div class="panel">
+  <div class="row">
+    <label>函数</label>
+    <button id="f-exp" class="on">e<sup>x</sup></button>
+    <button id="f-sin">sin x</button>
+    <button id="f-log">ln(1 + x)</button>
+    <span id="series" class="val" style="min-width:300px"></span>
+  </div>
+  <div class="row">
+    <label>阶数 n</label>
+    <input type="range" id="ord" min="0" max="14" step="1" value="1">
+    <span class="val">n = <b id="ord-v">1</b></span>
+  </div>
+  <div class="row">
+    <label>自变量 x</label>
+    <input type="range" id="xv" min="-3" max="3" step="0.05" value="0.1">
+    <span class="val">x = <b id="xv-v">0.10</b></span>
+  </div>
+  <div class="row">
+    <label>常用的几组</label>
+    <button data-set="exp,0.1,1">e<sup>x</sup>，x = 0.1，一阶</button>
+    <button data-set="exp,0.1,2">e<sup>x</sup>，x = 0.1，二阶</button>
+    <button data-set="sin,0.5,3">sin x，x = 0.5，三阶</button>
+    <button data-set="sin,0.5,5">sin x，x = 0.5，五阶</button>
+    <button data-set="log,0.5,3">ln(1+x)，x = 0.5，三阶</button>
+    <button data-set="log,2,6">ln(1+x)，x = 2，六阶</button>
+  </div>
+</div>
+
+<div class="panel">
+  <table>
+    <tr><th>名目</th><th>数值</th></tr>
+    <tr><td>多项式算出的值 P<sub>n</sub>(x)</td><td class="num big" id="approx"></td></tr>
+    <tr><td>真值</td><td class="num big" id="exact"></td></tr>
+    <tr><td>差（真值减去多项式）</td><td class="num big" id="err"></td></tr>
+    <tr><td>最后加上去的那一项</td><td class="num" id="last"></td></tr>
+    <tr><td>下一个不为零的项</td><td class="num" id="next"></td></tr>
+  </table>
+  <p class="note" id="verdict"></p>
+</div>
+
+<div class="panel">
+  <svg id="plot" viewBox="0 0 1000 480" xmlns="http://www.w3.org/2000/svg"></svg>
+  <p class="note">蓝线是函数本身，橙线是 n 阶泰勒多项式，竖直的灰虚线是当前的 x。</p>
+</div>
+
+</div>
+
+<script>
+var PAL = {input:"#2F6FE0", comp1:"#E8743B", neutral:"#9AA6B6",
+           light:"#E7ECF3", text:"#1F2937", bad:"#D64545", good:"#3E9B3A"};
+
+function fact(k){ var r = 1; for (var i = 2; i <= k; i++) r *= i; return r; }
+
+var FUNCS = {
+  exp: {
+    name: "eˣ",
+    f: function(x){ return Math.exp(x); },
+    term: function(k, x){ return Math.pow(x, k) / fact(k); },
+    from: 0,
+    series: "1 + x + x²/2! + x³/3! + ⋯",
+    domain: [-3, 3],
+    range: [-1.5, 8],
+    conv: function(){ return true; },
+    convText: "收敛域是全体实数"
+  },
+  sin: {
+    name: "sin x",
+    f: function(x){ return Math.sin(x); },
+    term: function(k, x){
+      if (k % 2 === 0) return 0;
+      return Math.pow(-1, (k - 1) / 2) * Math.pow(x, k) / fact(k);
+    },
+    from: 0,
+    series: "x − x³/3! + x⁵/5! − ⋯",
+    domain: [-7, 7],
+    range: [-2.2, 2.2],
+    conv: function(){ return true; },
+    convText: "收敛域是全体实数"
+  },
+  log: {
+    name: "ln(1 + x)",
+    f: function(x){ return x > -1 ? Math.log(1 + x) : NaN; },
+    term: function(k, x){
+      if (k === 0) return 0;
+      return Math.pow(-1, k - 1) * Math.pow(x, k) / k;
+    },
+    from: 0,
+    series: "x − x²/2 + x³/3 − ⋯",
+    domain: [-0.95, 3],
+    range: [-3, 2],
+    conv: function(x){ return x > -1 && x <= 1; },
+    convText: "收敛域是 −1 < x ≤ 1"
+  }
+};
+
+var cur = "exp", ord = 1, xv = 0.1;
+
+function poly(key, n, x){
+  var t = FUNCS[key], s = 0;
+  for (var k = 0; k <= n; k++) s += t.term(k, x);
+  return s;
+}
+
+function fmt(v, nd){
+  if (!isFinite(v)) return "—";
+  var s = v.toFixed(nd === undefined ? 6 : nd);
+  return s.replace("-", "−");
+}
+
+var SUP = {"0":"⁰","1":"¹","2":"²","3":"³","4":"⁴",
+           "5":"⁵","6":"⁶","7":"⁷","8":"⁸","9":"⁹","-":"⁻"};
+
+function sup10(e){
+  return String(e).split("").map(function(c){ return SUP[c]; }).join("");
+}
+
+// 很小的数按八位小数会显示成 0，改用科学计数法
+function fmtNum(v){
+  if (!isFinite(v)) return "—";
+  if (v === 0) return "0";
+  var a = Math.abs(v);
+  if (a >= 1e-6) return fmt(v, 8);
+  var e = Math.floor(Math.log(a) / Math.LN10);
+  var m = v / Math.pow(10, e);
+  return m.toFixed(3).replace("-", "−") + "×10" + sup10(e);
+}
+
+// 双精度只能分辨到真值的约 10⁻¹⁶ 倍；再小的差算出来是舍入噪声，不是真的余项
+function fmtDiff(v, scale){
+  if (!isFinite(v)) return "—";
+  var floor_ = 1e-15 * Math.max(1, Math.abs(scale));
+  if (Math.abs(v) < floor_)
+    return "小于 " + fmtNum(floor_) + "（超出计算精度）";
+  return fmtNum(v);
+}
+
+function setBtns(){
+  document.getElementById("f-exp").className = cur === "exp" ? "on" : "";
+  document.getElementById("f-sin").className = cur === "sin" ? "on" : "";
+  document.getElementById("f-log").className = cur === "log" ? "on" : "";
+}
+
+function draw(){
+  var t = FUNCS[cur];
+  var W = 1000, H = 480, L = 70, R = 30, T = 24, B = 48;
+  var x0 = t.domain[0], x1 = t.domain[1], y0 = t.range[0], y1 = t.range[1];
+  var sx = function(x){ return L + (x - x0) / (x1 - x0) * (W - L - R); };
+  var sy = function(y){ return T + (y1 - y) / (y1 - y0) * (H - T - B); };
+  var out = [];
+  out.push('<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#fff"/>');
+  for (var gx = Math.ceil(x0); gx <= x1; gx++){
+    out.push('<line x1="' + sx(gx) + '" y1="' + sy(y0) + '" x2="' + sx(gx) +
+             '" y2="' + sy(y1) + '" stroke="' + PAL.light + '" stroke-width="1"/>');
+    out.push('<text x="' + sx(gx) + '" y="' + (sy(Math.min(Math.max(0, y0), y1)) + 18) +
+             '" font-size="13" fill="' + PAL.neutral + '" text-anchor="middle">' +
+             gx + '</text>');
+  }
+  for (var gy = Math.ceil(y0); gy <= y1; gy++){
+    out.push('<line x1="' + sx(x0) + '" y1="' + sy(gy) + '" x2="' + sx(x1) +
+             '" y2="' + sy(gy) + '" stroke="' + PAL.light + '" stroke-width="1"/>');
+    out.push('<text x="' + (L - 12) + '" y="' + (sy(gy) + 5) + '" font-size="13" fill="' +
+             PAL.neutral + '" text-anchor="end">' + gy + '</text>');
+  }
+  var ax = Math.min(Math.max(0, y0), y1);
+  out.push('<line x1="' + sx(x0) + '" y1="' + sy(ax) + '" x2="' + sx(x1) + '" y2="' +
+           sy(ax) + '" stroke="' + PAL.neutral + '" stroke-width="1.5"/>');
+  var ay = Math.min(Math.max(0, x0), x1);
+  out.push('<line x1="' + sx(ay) + '" y1="' + sy(y0) + '" x2="' + sx(ay) + '" y2="' +
+           sy(y1) + '" stroke="' + PAL.neutral + '" stroke-width="1.5"/>');
+
+  function curve(fn, color, w){
+    var d = "", pen = false;
+    for (var i = 0; i <= 600; i++){
+      var x = x0 + (x1 - x0) * i / 600, y = fn(x);
+      if (!isFinite(y) || y < y0 || y > y1){ pen = false; continue; }
+      d += (pen ? " L " : " M ") + sx(x).toFixed(1) + " " + sy(y).toFixed(1);
+      pen = true;
+    }
+    out.push('<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' +
+             w + '" stroke-linecap="round" stroke-linejoin="round"/>');
+  }
+  curve(t.f, PAL.input, 3);
+  curve(function(x){ return poly(cur, ord, x); }, PAL.comp1, 2.4);
+
+  out.push('<line x1="' + sx(xv) + '" y1="' + sy(y0) + '" x2="' + sx(xv) + '" y2="' +
+           sy(y1) + '" stroke="' + PAL.neutral +
+           '" stroke-width="1.2" stroke-dasharray="5 5"/>');
+  var ya = t.f(xv), yp = poly(cur, ord, xv);
+  if (isFinite(ya) && ya >= y0 && ya <= y1)
+    out.push('<circle cx="' + sx(xv) + '" cy="' + sy(ya) + '" r="6" fill="' +
+             PAL.input + '"/>');
+  if (isFinite(yp) && yp >= y0 && yp <= y1)
+    out.push('<circle cx="' + sx(xv) + '" cy="' + sy(yp) + '" r="6" fill="' +
+             PAL.comp1 + '"/>');
+  out.push('<line x1="' + (L + 10) + '" y1="24" x2="' + (L + 50) + '" y2="24" stroke="' +
+           PAL.input + '" stroke-width="3"/>');
+  out.push('<text x="' + (L + 60) + '" y="29" font-size="14" fill="' + PAL.text + '">' +
+           t.name + '</text>');
+  out.push('<line x1="' + (L + 150) + '" y1="24" x2="' + (L + 190) + '" y2="24" stroke="' +
+           PAL.comp1 + '" stroke-width="3"/>');
+  out.push('<text x="' + (L + 200) + '" y="29" font-size="14" fill="' + PAL.text +
+           '">n = ' + ord + ' 的泰勒多项式</text>');
+  document.getElementById("plot").innerHTML = out.join("");
+}
+
+function update(){
+  var t = FUNCS[cur];
+  var slider = document.getElementById("xv");
+  slider.min = t.domain[0];
+  slider.max = t.domain[1];
+  if (xv < t.domain[0]) xv = t.domain[0];
+  if (xv > t.domain[1]) xv = t.domain[1];
+  slider.value = xv;
+  document.getElementById("ord").value = ord;
+  document.getElementById("ord-v").textContent = ord;
+  document.getElementById("xv-v").textContent = fmt(xv, 2);
+  document.getElementById("series").textContent = t.name + " = " + t.series;
+
+  var ap = poly(cur, ord, xv), ex = t.f(xv);
+  document.getElementById("approx").textContent = fmt(ap, 8);
+  document.getElementById("exact").textContent = fmt(ex, 8);
+  document.getElementById("err").textContent = fmtDiff(ex - ap, ex);
+  var lastK = -1;
+  for (var k = ord; k >= 0; k--){ if (t.term(k, xv) !== 0){ lastK = k; break; } }
+  var nextK = -1;
+  for (var k2 = ord + 1; k2 <= ord + 4; k2++){ if (t.term(k2, xv) !== 0){ nextK = k2; break; } }
+  document.getElementById("last").textContent =
+    lastK < 0 ? "—" : fmtNum(t.term(lastK, xv)) + "（k = " + lastK + "）";
+  document.getElementById("next").textContent =
+    nextK < 0 ? "—" : fmtNum(t.term(nextK, xv)) + "（k = " + nextK + "）";
+
+  var v = document.getElementById("verdict");
+  if (t.conv(xv)){
+    v.innerHTML = '<span class="ok">x 落在收敛域里' +
+      '：阶数一直加大，差会趋于 0。</span>' +
+      "（" + t.convText + "）";
+  } else {
+    v.innerHTML = '<span class="no">x 落在收敛域外：级数发散。</span>' +
+      "阶数加到足够大时，差会越来越大；刚过端点时要很多项才看得出来（" +
+      t.convText + "）。";
+  }
+  setBtns();
+  draw();
+}
+
+document.getElementById("f-exp").onclick = function(){ cur = "exp"; update(); };
+document.getElementById("f-sin").onclick = function(){ cur = "sin"; update(); };
+document.getElementById("f-log").onclick = function(){ cur = "log"; update(); };
+document.getElementById("ord").oninput = function(){ ord = parseInt(this.value, 10); update(); };
+document.getElementById("xv").oninput = function(){ xv = parseFloat(this.value); update(); };
+
+var presets = document.querySelectorAll("button[data-set]");
+for (var i = 0; i < presets.length; i++){
+  presets[i].onclick = function(){
+    var p = this.getAttribute("data-set").split(",");
+    cur = p[0]; xv = parseFloat(p[1]); ord = parseInt(p[2], 10);
+    update();
+  };
+}
+
+update();
+</script>
+</body>
+</html>

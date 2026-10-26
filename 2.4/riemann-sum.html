@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>黎曼和：切成 n 条长方形</title>
+<style>
+:root{
+  --input:#2F6FE0; --comp1:#E8743B; --comp2:#0E96B8; --output:#8E44AD;
+  --state:#E9A913; --bad:#D64545; --good:#3E9B3A; --neutral:#9AA6B6;
+  --light:#E7ECF3; --bg:#FFFFFF; --text:#1F2937;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:24px 28px;background:var(--bg);color:var(--text);
+     font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.7}
+h1{font-size:21px;margin:0 0 6px}
+.sub{color:var(--neutral);font-size:13px;margin-bottom:18px}
+.wrap{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+.col{flex:1 1 440px;min-width:420px}
+.ctrl{border:1px solid var(--light);border-radius:9px;padding:14px 16px;margin-bottom:14px}
+.row{display:flex;align-items:center;gap:12px;margin:9px 0}
+.row label{width:120px;color:var(--neutral);font-size:13px}
+input[type=range]{flex:1;accent-color:var(--input)}
+.val{width:120px;text-align:right;font-family:"Cambria Math",serif;font-size:16px}
+button{border:1px solid var(--neutral);background:#fff;color:var(--text);border-radius:6px;
+       padding:4px 12px;margin:3px 4px 0 0;cursor:pointer;font-size:13px;font-family:inherit}
+button:hover{background:var(--light)}
+button.on{border-color:var(--input);color:var(--input);background:rgba(47,111,224,.08)}
+table{border-collapse:collapse;width:100%;font-family:"Cambria Math",serif;font-size:15px}
+th,td{border:1px solid var(--light);padding:6px 10px;text-align:right}
+th{background:var(--light);font-weight:bold;text-align:right;font-size:13px;
+   font-family:"Microsoft YaHei",sans-serif}
+td.k{text-align:left;font-family:"Microsoft YaHei",sans-serif;font-size:13px;color:var(--neutral)}
+tr:nth-child(even) td{background:#FAFBFD}
+.verdict{margin-top:14px;border-radius:9px;padding:12px 16px;font-size:16px;
+         border:1px solid var(--neutral);background:#FAFBFD}
+.verdict b{font-family:"Cambria Math",serif;font-size:18px}
+.lo{border-color:var(--input);background:rgba(47,111,224,.08)}
+.hi{border-color:var(--comp1);background:rgba(232,116,59,.08)}
+.hit{border-color:var(--good);background:rgba(62,155,58,.10);color:var(--good)}
+svg{display:block;border:1px solid var(--light);border-radius:9px;background:#fff}
+.note{color:var(--neutral);font-size:13px;margin-top:10px}
+.lg{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px;font-size:13px}
+.lg i{display:inline-block;width:22px;height:0;border-top:3px solid;margin-right:6px;
+      vertical-align:middle}
+</style>
+</head>
+<body>
+<h1>黎曼和：切成 n 条长方形</h1>
+<div class="sub">y = x² 在 0 到 1 之间下面的那一块面积。把区间切成 n 段，每段宽 1 ÷ n，每段里取一点当长方形的高。拖动 n，换取点的位置，看这些长方形的面积之和怎样变。</div>
+
+<div class="wrap">
+<div class="col">
+  <div class="ctrl">
+    <div class="row"><label>条数 n</label><input type="range" id="sn" min="1" max="200" value="4"><span class="val" id="vn"></span></div>
+    <div class="row"><label>高取哪一点</label>
+      <span>
+        <button data-w="left">左端点</button>
+        <button data-w="mid">中点</button>
+        <button data-w="right">右端点</button>
+      </span>
+    </div>
+    <div class="row"><label></label>
+      <span>
+        <button data-n="4">n = 4</button>
+        <button data-n="10">n = 10</button>
+        <button data-n="100">n = 100</button>
+      </span>
+    </div>
+  </div>
+
+  <table>
+    <tr><td class="k">条数 n</td><td id="t_n"></td></tr>
+    <tr><td class="k">每条的宽 1 ÷ n</td><td id="t_dx"></td></tr>
+    <tr><td class="k">第 1 条的高</td><td id="t_h1"></td></tr>
+    <tr><td class="k">最后一条的高</td><td id="t_hn"></td></tr>
+    <tr><td class="k">黎曼和</td><td id="t_sum"></td></tr>
+    <tr><td class="k">真的面积 1 ÷ 3</td><td id="t_true"></td></tr>
+    <tr><td class="k">黎曼和减去真的面积</td><td id="t_err"></td></tr>
+  </table>
+
+  <div class="verdict" id="vd"></div>
+  <div class="note">表里的数由页面算出，保留十位小数。n = 4 时左端点和是 0.21875、右端点和是 0.46875；n 越大，三种取法都越靠近 0.3333333333。</div>
+</div>
+
+<div class="col">
+  <svg id="cv" width="520" height="470" viewBox="0 0 520 470" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div class="lg">
+    <span><i style="border-color:#2F6FE0"></i>y = x²</span>
+    <span><i style="border-color:#E9A913"></i>长方形</span>
+  </div>
+  <div class="note">圆点是每条取高的那一点（条数多了圆点会变小）。左端点的长方形全在曲线下面，右端点的全在曲线上面，中点的两边互相抵消一部分。</div>
+</div>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const sn = document.getElementById("sn");
+let where = "left";
+const TRUE_AREA = 1 / 3;
+
+function f(x){ return x * x; }
+function fx(v, n){ return v.toFixed(n).replace(/-/g, "−"); }
+
+function sample(k, n){           // 第 k 条（从 1 数起）取高的那一点
+  const dx = 1 / n;
+  if (where === "left") return (k - 1) * dx;
+  if (where === "right") return k * dx;
+  return (k - 0.5) * dx;
+}
+
+function riemann(n){
+  let s = 0;
+  for (let k = 1; k <= n; k++) s += f(sample(k, n)) / n;
+  return s;
+}
+
+function draw(n){
+  const sv = document.getElementById("cv");
+  while (sv.firstChild) sv.removeChild(sv.firstChild);
+  const L = 60, R = 490, T = 26, B = 400;
+  const x0 = 0, x1 = 1.12, y0 = 0, y1 = 1.30;   // 纵轴留到 1.30，曲线画到 1.12 时不出框
+  const px = x => L + (x - x0) / (x1 - x0) * (R - L);
+  const py = y => B - (y - y0) / (y1 - y0) * (B - T);
+  function add(tag, at){ const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]); sv.appendChild(e); return e; }
+  function txt(x, y, s, c, sz, an){ const e = add("text", {x:x, y:y, fill:c||"#1F2937",
+    "font-size":sz||12, "text-anchor":an||"middle",
+    "font-family":"Cambria Math, serif"}); e.textContent = s; return e; }
+  for (let g = 1; g <= 4; g++)
+    add("line", {x1:px(g/4), y1:T, x2:px(g/4), y2:B, stroke:"#E7ECF3", "stroke-width":1});
+  for (let g = 1; g <= 5; g++)
+    add("line", {x1:L, y1:py(g/4), x2:R, y2:py(g/4), stroke:"#E7ECF3", "stroke-width":1});
+  for (let k = 1; k <= n; k++){
+    const a = (k - 1) / n, b = k / n, h = f(sample(k, n));
+    add("rect", {x:px(a), y:py(h), width:px(b) - px(a), height:py(0) - py(h),
+      fill:"#E9A913", "fill-opacity":0.3, stroke:"#E9A913",
+      "stroke-width": n > 40 ? 0.5 : 1.2});
+    add("circle", {cx:px(sample(k, n)), cy:py(h), r: n > 40 ? 1.6 : 3,
+      fill:"#E9A913", "fill-opacity": n > 40 ? 0.7 : 1});
+  }
+  let d = "";
+  for (let i = 0; i <= 200; i++){
+    const x = x0 + (x1 - x0) * i / 200;
+    d += (i ? " L " : "M ") + px(x).toFixed(1) + " " + py(f(x)).toFixed(1);
+  }
+  add("path", {d:d, fill:"none", stroke:"#2F6FE0", "stroke-width":2.4});
+  add("line", {x1:L, y1:py(0), x2:R, y2:py(0), stroke:"#9AA6B6", "stroke-width":1.4});
+  add("line", {x1:px(0), y1:T, x2:px(0), y2:B, stroke:"#9AA6B6", "stroke-width":1.4});
+  txt(R + 14, py(0) + 4, "x", "#1F2937", 13);
+  txt(px(0) + 14, T + 2, "y", "#1F2937", 13);
+  for (let g = 1; g <= 4; g++)
+    txt(px(g/4), py(0) + 17, (g/4).toFixed(2), "#9AA6B6", 11);
+  for (let g = 1; g <= 5; g++)
+    txt(L - 16, py(g/4) + 4, (g/4).toFixed(2), "#9AA6B6", 11);
+  const s = riemann(n);
+  txt((L + R) / 2, B + 42, "黎曼和 " + fx(s, 6) + "　　真的面积 0.333333",
+      "#1F2937", 14);
+  txt((L + R) / 2, B + 66, "n = " + n + "，每条宽 " + fx(1 / n, 6), "#9AA6B6", 12);
+}
+
+function update(){
+  const n = +sn.value, dx = 1 / n, s = riemann(n);
+  document.getElementById("vn").textContent = String(n);
+  document.getElementById("t_n").textContent = String(n);
+  document.getElementById("t_dx").textContent = fx(dx, 10);
+  document.getElementById("t_h1").textContent = fx(f(sample(1, n)), 10);
+  document.getElementById("t_hn").textContent = fx(f(sample(n, n)), 10);
+  document.getElementById("t_sum").textContent = fx(s, 10);
+  document.getElementById("t_true").textContent = fx(TRUE_AREA, 10);
+  document.getElementById("t_err").textContent = fx(s - TRUE_AREA, 10);
+  const vd = document.getElementById("vd");
+  const d = s - TRUE_AREA;
+  vd.className = "verdict " + (Math.abs(d) < 5e-5 ? "hit" : (d < 0 ? "lo" : "hi"));
+  if (Math.abs(d) < 5e-5)
+    vd.innerHTML = "黎曼和 = <b>" + fx(s, 6) + "</b>，和 1 ÷ 3 的差已经小于 0.00005";
+  else if (d < 0)
+    vd.innerHTML = "黎曼和 = <b>" + fx(s, 6) + "</b>，比真的面积小 " + fx(-d, 6);
+  else
+    vd.innerHTML = "黎曼和 = <b>" + fx(s, 6) + "</b>，比真的面积大 " + fx(d, 6);
+  for (const b of document.querySelectorAll("button[data-w]"))
+    b.className = (b.dataset.w === where) ? "on" : "";
+  draw(n);
+}
+
+sn.oninput = update;
+for (const b of document.querySelectorAll("button[data-w]"))
+  b.onclick = () => { where = b.dataset.w; update(); };
+for (const b of document.querySelectorAll("button[data-n]"))
+  b.onclick = () => { sn.value = b.dataset.n; update(); };
+update();
+</script>
+</body>
+</html>

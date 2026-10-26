@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>ε 与 δ：给定 ε 求 δ</title>
+<style>
+  :root{
+    --input:#2F6FE0; --comp1:#E8743B; --comp2:#0E96B8; --output:#8E44AD;
+    --state:#E9A913; --bad:#D64545; --good:#3E9B3A; --neutral:#9AA6B6;
+    --light:#E7ECF3; --bg:#FFFFFF; --text:#1F2937;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:var(--bg);color:var(--text);
+       font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.7}
+  h1{font-size:21px;margin:0 0 6px}
+  .sub{color:var(--neutral);font-size:13px;margin-bottom:18px}
+  .wrap{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:1 1 430px;min-width:390px}
+  .card{border:1px solid var(--light);border-radius:9px;padding:14px 16px;margin-bottom:16px}
+  .card h2{font-size:15px;margin:0 0 10px}
+  button{font-family:inherit;font-size:14px;padding:6px 12px;margin:0 6px 6px 0;
+         border:1px solid var(--neutral);border-radius:6px;background:#fff;color:var(--text);cursor:pointer}
+  button:hover{background:var(--light)}
+  button.on{background:var(--input);border-color:var(--input);color:#fff}
+  input[type=range]{width:300px;vertical-align:middle}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin-top:8px}
+  th,td{border:1px solid var(--light);padding:5px 8px;text-align:center}
+  th{background:#F4F7FB;font-weight:bold}
+  .note{font-size:13px;color:var(--neutral);margin-top:8px}
+  .big{font-size:17px;font-weight:bold}
+  .bad{color:var(--bad)} .good{color:var(--good)}
+  .out{color:var(--output)} .in{color:var(--input)}
+  svg{display:block;max-width:100%}
+  .row{margin:7px 0}
+  .verdict{font-size:17px;font-weight:bold;padding:8px 12px;border-radius:7px;margin-top:10px}
+  .ok{background:#EAF6EA;color:var(--good)}
+  .no{background:#FBEAEA;color:var(--bad)}
+</style>
+</head>
+<body>
+<h1>ε 与 δ：给定 ε 求 δ</h1>
+<div class="sub">任意给定一个正数 ε，页面按规则取一个 δ，并检查区间内的函数值是否都满足 |f(x) − A| &lt; ε。</div>
+
+<div class="card">
+  <h2>选函数</h2>
+  <div id="picker"></div>
+  <div class="row" id="formula"></div>
+</div>
+
+<div class="wrap">
+  <div class="col">
+    <div class="card">
+      <h2>给定的 ε</h2>
+      <div class="row">
+        <b class="out">ε</b> =
+        <input type="range" id="eps" min="0" max="100" value="55">
+        <b class="out" id="epsv"></b>
+      </div>
+      <div class="row">
+        直接取：
+        <button data-eps="0.1">ε = 0.1</button>
+        <button data-eps="0.01">ε = 0.01</button>
+        <button data-eps="0.001">ε = 0.001</button>
+      </div>
+      <div class="row" id="deltaline"></div>
+      <div class="row" id="rule"></div>
+      <table id="tbl"><thead><tr>
+        <th>位置</th><th>函数值</th><th>与 A 的差</th>
+      </tr></thead><tbody></tbody></table>
+      <div id="verdict" class="verdict"></div>
+      <div class="note" id="extra"></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <h2>ε 与 δ 的范围</h2>
+      <svg id="plot" width="520" height="430" viewBox="0 0 520 430"></svg>
+      <div class="note">区间 (A − ε, A + ε) 是函数值的范围，区间 (a − δ, a + δ) 去掉 a 是自变量的范围。
+      自变量在这个范围内时，曲线全部落在函数值的范围内，这个 δ 就满足定义。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const P = {input:"#2F6FE0",comp1:"#E8743B",comp2:"#0E96B8",output:"#8E44AD",
+           state:"#E9A913",bad:"#D64545",good:"#3E9B3A",neutral:"#9AA6B6",
+           light:"#E7ECF3",text:"#1F2937"};
+
+const FUNCS = [
+  { key:"E", name:"E(w) = (w − 2)²",
+    formula:"E(w) = (w − 2)²，趋近的点 w → 4，极限 4",
+    a:4, A:4, vname:"w", hole:false,
+    f:w => (w-2)*(w-2),
+    delta:eps => Math.min(1, eps/5),
+    rule:"取 δ = min(1, ε ÷ 5)：因为 |E(w) − 4| = |w| × |w − 4|，先限定 |w − 4| < 1 得 |w| < 5，于是这个差小于 5 × |w − 4|。",
+    span:0.45, yspan:1.6, exists:true },
+  { key:"q", name:"差商 q(w)",
+    formula:"q(w) = ((w − 2)² − 4) ÷ (w − 4)，趋近的点 w → 4，极限 4；w = 4 处没有定义",
+    a:4, A:4, vname:"w", hole:true,
+    f:w => ((w-2)*(w-2)-4)/(w-4),
+    delta:eps => eps,
+    rule:"取 δ = ε：因为每个 w ≠ 4 都有 q(w) = w，q(w) 与 4 的差就等于 w 与 4 的差。",
+    span:1.2, yspan:1.2, exists:true },
+  { key:"u", name:"阶跃函数 u(x)",
+    formula:"u(x)：x < 0 时 0，x ≥ 0 时 1，趋近的点 x → 0",
+    a:0, A:0.5, vname:"x", hole:false,
+    f:x => x < 0 ? 0 : 1,
+    delta:eps => Math.min(0.6, eps),
+    rule:"u 在 x = 0 处没有极限。取 A = 0.5 试一次，δ 取 min(0.6, ε)。",
+    span:1.2, yspan:1.4, exists:false },
+];
+
+let cur = FUNCS[0];
+let epsVal = 0.1;
+
+// 滑块位置换算成 ε：0.001 到 1，按对数均匀
+function epsFromSlider(v){
+  const lo = Math.log10(0.001), hi = Math.log10(1);
+  const e = Math.pow(10, lo + (hi-lo)*v/100);
+  // 取两位有效数字，读起来干净
+  const p = Math.pow(10, Math.floor(Math.log10(e)));
+  return Math.round(e/p*10)/10*p;
+}
+
+function fmt(v,n){
+  if (!isFinite(v)) return "—";
+  let s = v.toFixed(n);
+  if (s.indexOf(".") >= 0) s = s.replace(/0+$/,"").replace(/\.$/,"");
+  return s.replace("-","−");
+}
+
+function buildPicker(){
+  const box = document.getElementById("picker");
+  box.innerHTML = "";
+  FUNCS.forEach(fn => {
+    const b = document.createElement("button");
+    b.textContent = fn.name;
+    b.className = (fn === cur) ? "on" : "";
+    b.onclick = () => { cur = fn; buildPicker(); render(); };
+    box.appendChild(b);
+  });
+  document.getElementById("formula").innerHTML = "<b>" + cur.formula + "</b>";
+}
+
+function sliderFromEps(e){
+  const lo = Math.log10(0.001), hi = Math.log10(1);
+  return Math.round(100 * (Math.log10(e) - lo) / (hi - lo));
+}
+
+function render(){
+  const eps = epsVal;
+  const d = cur.delta(eps);
+  document.getElementById("epsv").textContent = fmt(eps,6);
+  document.getElementById("deltaline").innerHTML =
+      "取 <b class='in'>δ</b> = <b class='in'>" + fmt(d,6) + "</b>";
+  document.getElementById("rule").innerHTML = "<span class='note'>" + cur.rule + "</span>";
+
+  // 检验：在开区间 (a−δ, a+δ) 里取若干个自变量（两个端点不算在内），看最大的差
+  const n = 400;
+  let worst = 0, worstx = cur.a + d/2;
+  for (let i = 1; i < n; i++){
+    const x = cur.a - d + 2*d*i/n;
+    if (Math.abs(x - cur.a) < 1e-12) continue;
+    const diff = Math.abs(cur.f(x) - cur.A);
+    if (diff > worst) { worst = diff; worstx = x; }
+  }
+  const okAll = worst < eps;
+
+  // 表：两个端点（不算在内）和区间内差得最大的那一点
+  const show = [[cur.a - d, "左端点（不算在内）"],
+                [cur.a + d, "右端点（不算在内）"],
+                [worstx, "采样点中差最大的一点"]];
+  const tb = document.querySelector("#tbl tbody");
+  tb.innerHTML = "";
+  show.forEach(([x,name]) => {
+    const y = cur.f(x), diff = Math.abs(y - cur.A);
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + name + "：" + cur.vname + " = " + fmt(x,8) +
+      "</td><td>" + fmt(y,10) + "</td><td>" + fmt(diff,10) + "</td>";
+    tb.appendChild(tr);
+  });
+
+  const edge = Math.max(Math.abs(cur.f(cur.a-d) - cur.A), Math.abs(cur.f(cur.a+d) - cur.A));
+  const v = document.getElementById("verdict");
+  // 极限不存在的函数（阶跃函数）即使这一个 ε 碰巧找得到 δ，也不给绿色的"满足定义"
+  v.className = "verdict " + (okAll && cur.exists ? "ok" : "no");
+  const tail = cur.exists ? "" : (okAll
+    ? "。可是 ε 一旦不超过 0.5 就再也找不到 δ 了：u 的左极限是 0、右极限是 1，两者不相等，"
+      + "所以 u 在 " + cur.vname + " = 0 处没有极限，A = " + fmt(cur.A,6) + " 也不是它的极限"
+    : "。对这个 ε 找不到 δ，所以 A = " + fmt(cur.A,6) + " 不是 u 在 " + cur.vname
+      + " = 0 处的极限。换别的数当 A 也一样：u 的左极限是 0、右极限是 1，两者不相等，"
+      + "所以极限不存在");
+  v.textContent = (okAll
+    ? (cur.exists
+       ? ("端点处的差是 " + fmt(edge,10) + "，端点本身不算在内；区间 (a − δ, a + δ) 内每一点的差都小于 ε = "
+          + fmt(eps,6) + "，所以这个 δ 满足定义")
+       : ("这个 δ 让区间内每一点的差都小于 ε = " + fmt(eps,6)))
+    : ("区间内有点与 A 的差达到 " + fmt(worst,10) + "，不小于 ε = " + fmt(eps,6)
+       + "，所以这个 δ 不满足 |f(x) − A| < ε")) + tail;
+
+  document.getElementById("extra").innerHTML = cur.exists
+    ? "把 ε 拖到更小，δ 跟着变小，仍然有 |f(x) − A| < ε。这就是“对每个正数 ε 都能找到 δ”。ε 很小时，两条带在图上只有一两个像素宽，数值以表为准。"
+    : "把 ε 拖到 0.5 或更小：区间内每个点的函数值不是 0 就是 1，与 0.5 的差都正好是 0.5，δ 再小也改变不了这一点，所以 0.5 不是极限。换成别的数当 A 同样找不到 δ：区间里既有函数值 0 又有函数值 1，和同一个 A 的两个差不可能都小于 0.5。这就是左极限 0 和右极限 1 不相等在定义里的样子，所以 u 在 x = 0 处没有极限。";
+
+  draw(eps, d);
+}
+
+function draw(eps, d){
+  const svg = document.getElementById("plot");
+  const W = 520, H = 430, L = 60, R = 20, T = 20, B = 44;
+  const x0 = cur.a - cur.span, x1 = cur.a + cur.span;
+  const y0 = cur.A - cur.yspan, y1 = cur.A + cur.yspan;
+  const px = x => L + (W-L-R)*(x-x0)/(x1-x0);
+  const py = y => H-B - (H-T-B)*(y-y0)/(y1-y0);
+  const clampY = y => Math.max(y0, Math.min(y1, y));
+  let s = "";
+  const line=(a,b,c,e,col,w,dash)=>s+=`<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${e.toFixed(1)}" stroke="${col}" stroke-width="${w}"${dash?` stroke-dasharray="${dash}"`:""}/>`;
+  const txt=(a,b,t,col,sz,an)=>s+=`<text x="${a.toFixed(1)}" y="${b.toFixed(1)}" fill="${col}" font-size="${sz||12}" text-anchor="${an||"middle"}" font-family="Microsoft YaHei, sans-serif">${t}</text>`;
+
+  // 两条带
+  const by0 = py(clampY(cur.A+eps)), by1 = py(clampY(cur.A-eps));
+  s += `<rect x="${L}" y="${by0.toFixed(1)}" width="${W-L-R}" height="${(by1-by0).toFixed(1)}" fill="${P.output}" fill-opacity="0.16"/>`;
+  const bx0 = px(Math.max(x0, cur.a-d)), bx1 = px(Math.min(x1, cur.a+d));
+  s += `<rect x="${bx0.toFixed(1)}" y="${T}" width="${(bx1-bx0).toFixed(1)}" height="${H-T-B}" fill="${P.input}" fill-opacity="0.16"/>`;
+
+  // 网格与轴
+  const stepx = niceStep(x1-x0), stepy = niceStep(y1-y0);
+  for (let v = Math.ceil(x0/stepx)*stepx; v <= x1+1e-9; v += stepx){
+    line(px(v),T,px(v),H-B,P.light,1); txt(px(v),H-B+18,trim(v),P.neutral,11);
+  }
+  for (let v = Math.ceil(y0/stepy)*stepy; v <= y1+1e-9; v += stepy){
+    line(L,py(v),W-R,py(v),P.light,1); txt(L-8,py(v)+4,trim(v),P.neutral,11,"end");
+  }
+  const ay = Math.min(Math.max(y0,0),y1);
+  line(L,py(ay),W-R,py(ay),P.neutral,1.4);
+  if (x0 <= 0 && 0 <= x1) line(px(0),T,px(0),H-B,P.neutral,1.4);
+
+  // 带的边界线
+  [cur.A-eps, cur.A+eps].forEach(v => { if (v>y0 && v<y1) line(L,py(v),W-R,py(v),P.output,1.2,"5 4"); });
+  [cur.a-d, cur.a+d].forEach(v => { if (v>x0 && v<x1) line(px(v),T,px(v),H-B,P.input,1.2,"5 4"); });
+
+  // 曲线
+  const N = 1400; let path = "", pen = false;
+  for (let i = 0; i <= N; i++){
+    const x = x0 + (x1-x0)*i/N;
+    if (cur.hole && Math.abs(x-cur.a) < (x1-x0)/N) { pen = false; continue; }
+    if (cur.key === "u" && Math.abs(x) < (x1-x0)/N) { pen = false; continue; }
+    const y = cur.f(x);
+    if (!isFinite(y) || y < y0 || y > y1) { pen = false; continue; }
+    path += (pen ? " L " : " M ") + px(x).toFixed(1) + " " + py(y).toFixed(1);
+    pen = true;
+  }
+  s += `<path d="${path}" fill="none" stroke="${P.output}" stroke-width="2.2"/>`;
+  if (cur.hole)
+    s += `<circle cx="${px(cur.a).toFixed(1)}" cy="${py(cur.A).toFixed(1)}" r="5" fill="#fff" stroke="${P.output}" stroke-width="2.2"/>`;
+  if (cur.key === "u"){
+    s += `<circle cx="${px(0).toFixed(1)}" cy="${py(0).toFixed(1)}" r="5" fill="#fff" stroke="${P.output}" stroke-width="2.2"/>`;
+    s += `<circle cx="${px(0).toFixed(1)}" cy="${py(1).toFixed(1)}" r="5" fill="${P.output}"/>`;
+  }
+  if (cur.key === "E")
+    s += `<circle cx="${px(4).toFixed(1)}" cy="${py(4).toFixed(1)}" r="5" fill="${P.output}"/>`;
+
+  txt(W-R, py(ay)-8, cur.vname, P.text, 13, "end");
+  txt(px(cur.a), T-4, "趋近的点 " + cur.vname + " = " + cur.a, P.input, 12);
+  svg.innerHTML = s;
+}
+
+function niceStep(span){
+  const raw = span/6, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const c = [1,2,5,10].find(k => raw <= k*p) || 10;
+  return c*p;
+}
+function trim(v){
+  let s = Math.abs(v) < 1e-9 ? "0" : v.toFixed(4).replace(/0+$/,"").replace(/\.$/,"");
+  return s.replace("-","−");
+}
+
+document.getElementById("eps").oninput = e => {
+  epsVal = epsFromSlider(+e.target.value);
+  render();
+};
+document.querySelectorAll("button[data-eps]").forEach(b => {
+  b.onclick = () => {
+    epsVal = parseFloat(b.dataset.eps);
+    document.getElementById("eps").value = sliderFromEps(epsVal);
+    render();
+  };
+});
+document.getElementById("eps").value = sliderFromEps(epsVal);
+buildPicker();
+render();
+</script>
+</body>
+</html>

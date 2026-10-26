@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>指数移动平均的权重</title>
+<style>
+:root{
+  --input:#2F6FE0; --comp1:#E8743B; --comp2:#0E96B8; --output:#8E44AD;
+  --state:#E9A913; --bad:#D64545; --good:#3E9B3A; --neutral:#9AA6B6;
+  --light:#E7ECF3; --bg:#FFFFFF; --text:#1F2937;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:24px 28px;background:var(--bg);color:var(--text);
+     font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.7}
+h1{font-size:21px;margin:0 0 6px}
+.sub{color:var(--neutral);font-size:13px;margin-bottom:18px}
+.wrap{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+.col{flex:1 1 440px;min-width:420px}
+.ctrl{border:1px solid var(--light);border-radius:9px;padding:14px 16px;margin-bottom:14px}
+.row{display:flex;align-items:center;gap:12px;margin:9px 0}
+.row label{width:120px;color:var(--neutral);font-size:13px}
+input[type=range]{flex:1;accent-color:var(--output)}
+.val{width:120px;text-align:right;font-family:"Cambria Math",serif;font-size:16px}
+button{border:1px solid var(--neutral);background:#fff;color:var(--text);border-radius:6px;
+       padding:4px 12px;margin:3px 4px 0 0;cursor:pointer;font-size:13px;font-family:inherit}
+button:hover{background:var(--light)}
+table{border-collapse:collapse;width:100%;font-family:"Cambria Math",serif;font-size:15px}
+th,td{border:1px solid var(--light);padding:6px 10px;text-align:right}
+th{background:var(--light);font-weight:bold;text-align:right;font-size:13px;
+   font-family:"Microsoft YaHei",sans-serif}
+td.k{text-align:left;font-family:"Microsoft YaHei",sans-serif;font-size:13px;color:var(--neutral)}
+tr:nth-child(even) td{background:#FAFBFD}
+.verdict{margin-top:14px;border-radius:9px;padding:12px 16px;font-size:16px;
+         border:1px solid var(--output);background:rgba(142,68,173,.08)}
+.verdict b{font-family:"Cambria Math",serif;font-size:18px}
+svg{display:block;border:1px solid var(--light);border-radius:9px;background:#fff}
+.note{color:var(--neutral);font-size:13px;margin-top:10px}
+</style>
+</head>
+<body>
+<h1>指数移动平均的权重</h1>
+<div class="sub">每来一个新数就更新一次：平均值 ← β × 平均值 + (1 − β) × 新数。展开以后，往前数 k 步的那个数权重是 (1 − β)βᵏ。拖动 β 和步数，看这些权重和它们的总和怎样变。</div>
+
+<div class="wrap">
+<div class="col">
+  <div class="ctrl">
+    <div class="row"><label>系数 β</label><input type="range" id="sb" min="50" max="99" value="90"><span class="val" id="vb"></span></div>
+    <div class="row"><label>已经来了几个数 n</label><input type="range" id="sn" min="1" max="60" value="10"><span class="val" id="vn"></span></div>
+    <div class="row"><label></label>
+      <span>
+        <button data-b="90">β = 0.9</button>
+        <button data-b="99">β = 0.99</button>
+        <button data-n="1">n = 1</button>
+        <button data-n="10">n = 10</button>
+        <button data-n="40">n = 40</button>
+      </span>
+    </div>
+  </div>
+
+  <table>
+    <tr><td class="k">最新一个数的权重 1 − β</td><td id="t_w0"></td></tr>
+    <tr><td class="k">往前数 1 步的权重</td><td id="t_w1"></td></tr>
+    <tr><td class="k">往前数 5 步的权重</td><td id="t_w5"></td></tr>
+    <tr><td class="k">相邻两个权重的比（就是 β）</td><td id="t_ratio"></td></tr>
+    <tr><td class="k">n 个权重之和（1 − βⁿ）</td><td id="t_sum"></td></tr>
+    <tr><td class="k">离 1 还差（βⁿ）</td><td id="t_gap"></td></tr>
+  </table>
+
+  <div class="verdict" id="vd"></div>
+  <div class="note">表里的数由页面算出，保留十位小数（"相邻两个权重的比"那一行就是 β 本身，按两位显示）。β = 0.9、n = 10 时权重之和是 0.6513215599，离 1 还差 0.3486784401。</div>
+</div>
+
+<div class="col">
+  <svg id="cv" width="540" height="470" viewBox="0 0 540 470" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div class="note">每一条是一个数的权重，最左边是刚来的那个数。条形只画出前 30 步；β 越接近 1，条形摊得越平，看得越远，权重之和补到 1 也越慢。</div>
+</div>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const sb = document.getElementById("sb");
+const sn = document.getElementById("sn");
+const MAX_BARS = 30;
+
+function fx(v, n){ return v.toFixed(n).replace(/-/g, "−"); }
+
+function weight(beta, k){ return (1 - beta) * Math.pow(beta, k); }
+
+function draw(beta, n){
+  const sv = document.getElementById("cv");
+  while (sv.firstChild) sv.removeChild(sv.firstChild);
+  const L = 56, R = 520, T = 30, B = 344;
+  const shown = Math.min(n, MAX_BARS);
+  const top = 1 - beta;                       // 最高的一条就是最新那个数的权重
+  const add = (name, attrs, txt) => {
+    const e = document.createElementNS(NS, name);
+    for (const a in attrs) e.setAttribute(a, attrs[a]);
+    if (txt !== undefined) e.textContent = txt;
+    sv.appendChild(e);
+    return e;
+  };
+  add("line", {x1: L - 10, y1: B, x2: R, y2: B, stroke: "#9AA6B6", "stroke-width": 1.5});
+  const bw = (R - L) / shown;
+  for (let k = 0; k < shown; k++){
+    const h = (weight(beta, k) / top) * (B - T);
+    add("rect", {x: L + k * bw + 1, y: B - h, width: Math.max(bw - 3, 1.5), height: h,
+                 fill: "#8E44AD", "fill-opacity": 0.72, stroke: "#8E44AD",
+                 "stroke-width": 1});
+    if (shown <= 16 || k % 5 === 0){
+      add("text", {x: L + k * bw + bw / 2, y: B + 18, "text-anchor": "middle",
+                   "font-size": 11, fill: "#9AA6B6"}, String(k));
+    }
+  }
+  add("text", {x: (L + R) / 2, y: B + 42, "text-anchor": "middle", "font-size": 13,
+               fill: "#9AA6B6"}, "往前数 k 步");
+  add("text", {x: L - 10, y: T - 10, "text-anchor": "start", "font-size": 13,
+               fill: "#1F2937"}, "最高的一条是 1 − β = " + fx(top, 4));
+  if (n > MAX_BARS){
+    add("text", {x: R, y: T - 10, "text-anchor": "end", "font-size": 12,
+                 fill: "#9AA6B6"}, "只画出前 " + MAX_BARS + " 步，共 " + n + " 步");
+  }
+  // 权重之和的条：画成一条横向进度条
+  const total = 1 - Math.pow(beta, n);
+  add("text", {x: L - 10, y: 420, "text-anchor": "start", "font-size": 13,
+               fill: "#1F2937"}, "权重之和 " + fx(total, 6) + "（满格是 1）");
+  add("rect", {x: L - 10, y: 430, width: R - L + 10, height: 20, fill: "none",
+               stroke: "#9AA6B6", "stroke-width": 1.2, rx: 4});
+  add("rect", {x: L - 10, y: 430, width: (R - L + 10) * total, height: 20,
+               fill: "#3E9B3A", "fill-opacity": 0.55});
+}
+
+function update(){
+  const beta = Number(sb.value) / 100;
+  const n = Number(sn.value);
+  document.getElementById("vb").textContent = beta.toFixed(2);
+  document.getElementById("vn").textContent = n;
+  document.getElementById("t_w0").textContent = fx(weight(beta, 0), 10);
+  document.getElementById("t_w1").textContent = n >= 2 ? fx(weight(beta, 1), 10) : "还没有";
+  document.getElementById("t_w5").textContent = n >= 6 ? fx(weight(beta, 5), 10) : "还没有";
+  document.getElementById("t_ratio").textContent = n >= 2 ? beta.toFixed(2) : "—";
+  const total = 1 - Math.pow(beta, n);
+  document.getElementById("t_sum").textContent = fx(total, 10);
+  document.getElementById("t_gap").textContent = fx(Math.pow(beta, n), 10);
+  const vd = document.getElementById("vd");
+  vd.innerHTML = "权重之和 <b>" + fx(total, 6) + "</b>，离 1 还差 <b>" +
+    fx(Math.pow(beta, n), 6) + "</b>。" +
+    (total > 0.99 ? "已经接近一个真正的加权平均。"
+                  : "缺的这一截相当于乘在起点 0 上，算出的平均值被拉向 0："
+                    + "来的数是正的就算小了，是负的就算大了，绝对值都偏小。");
+  draw(beta, n);
+}
+
+sb.addEventListener("input", update);
+sn.addEventListener("input", update);
+document.querySelectorAll("button").forEach(b => {
+  b.addEventListener("click", () => {
+    if (b.dataset.b) sb.value = b.dataset.b;
+    if (b.dataset.n) sn.value = b.dataset.n;
+    update();
+  });
+});
+update();
+</script>
+</body>
+</html>

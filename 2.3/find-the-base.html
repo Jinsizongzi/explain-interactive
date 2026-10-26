@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>找底数：让 D(a) 等于 1</title>
+<style>
+:root{
+  --input:#2F6FE0; --comp1:#E8743B; --comp2:#0E96B8; --output:#8E44AD;
+  --state:#E9A913; --bad:#D64545; --good:#3E9B3A; --neutral:#9AA6B6;
+  --light:#E7ECF3; --bg:#FFFFFF; --text:#1F2937;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:24px 28px;background:var(--bg);color:var(--text);
+     font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.7}
+h1{font-size:21px;margin:0 0 6px}
+.sub{color:var(--neutral);font-size:13px;margin-bottom:18px}
+.wrap{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+.col{flex:1 1 440px;min-width:420px}
+.ctrl{border:1px solid var(--light);border-radius:9px;padding:14px 16px;margin-bottom:14px}
+.row{display:flex;align-items:center;gap:12px;margin:9px 0}
+.row label{width:132px;color:var(--neutral);font-size:13px}
+input[type=range]{flex:1;accent-color:var(--input)}
+.val{width:132px;text-align:right;font-family:"Cambria Math",serif;font-size:16px}
+button{border:1px solid var(--neutral);background:#fff;color:var(--text);border-radius:6px;
+       padding:4px 12px;margin:3px 4px 0 0;cursor:pointer;font-size:13px;font-family:inherit}
+button:hover{background:var(--light)}
+table{border-collapse:collapse;width:100%;font-family:"Cambria Math",serif;font-size:15px}
+th,td{border:1px solid var(--light);padding:6px 10px;text-align:right}
+th{background:var(--light);font-weight:bold;text-align:right;font-size:13px;
+   font-family:"Microsoft YaHei",sans-serif}
+td.k{text-align:left;font-family:"Microsoft YaHei",sans-serif;font-size:13px;color:var(--neutral)}
+tr:nth-child(even) td{background:#FAFBFD}
+.verdict{margin-top:14px;border-radius:9px;padding:12px 16px;font-size:16px;
+         border:1px solid var(--neutral);background:#FAFBFD}
+.verdict b{font-family:"Cambria Math",serif;font-size:18px}
+.hit{border-color:var(--good);background:rgba(62,155,58,.10);color:var(--good)}
+.lo{border-color:var(--input);background:rgba(47,111,224,.08)}
+.hi{border-color:var(--comp1);background:rgba(232,116,59,.08)}
+svg{display:block;border:1px solid var(--light);border-radius:9px;background:#fff}
+.note{color:var(--neutral);font-size:13px;margin-top:10px}
+.lg{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px;font-size:13px}
+.lg i{display:inline-block;width:22px;height:0;border-top:3px solid;margin-right:6px;
+      vertical-align:middle}
+</style>
+</head>
+<body>
+<h1>找底数：让 D(a) 等于 1</h1>
+<div class="sub">a<sup>x</sup> 在 x = 0 处的差商是 (a<sup>Δx</sup> − 1) ÷ Δx，它的极限记作 D(a)，等于 a<sup>x</sup> 的图像在点 (0, 1) 处切线的斜率。拖动两个滑块（底数 1.5 到 10），看 D(a) 什么时候等于 1。</div>
+
+<div class="wrap">
+<div class="col">
+  <div class="ctrl">
+    <div class="row"><label>底数 a</label><input type="range" id="sa" min="0" max="100000" value="20000"><span class="val" id="va"></span></div>
+    <div class="row"><label>改动量 Δx</label><input type="range" id="sh" min="0" max="600" value="300"><span class="val" id="vh"></span></div>
+    <div class="row"><label></label>
+      <span>
+        <button data-a="2">a = 2</button>
+        <button data-a="2.718282">a = 2.718282</button>
+        <button data-a="3">a = 3</button>
+        <button data-a="10">a = 10</button>
+      </span>
+    </div>
+  </div>
+
+  <table>
+    <tr><td class="k">底数 a</td><td id="t_a"></td></tr>
+    <tr><td class="k">改动量 Δx</td><td id="t_h"></td></tr>
+    <tr><td class="k">a 的 Δx 次方</td><td id="t_p"></td></tr>
+    <tr><td class="k">减去 1</td><td id="t_m"></td></tr>
+    <tr><td class="k">除以 Δx，得到差商</td><td id="t_r"></td></tr>
+    <tr><td class="k">这个差商的极限 D(a)</td><td id="t_d"></td></tr>
+    <tr><td class="k">差商和 D(a) 相差</td><td id="t_e"></td></tr>
+  </table>
+
+  <div class="verdict" id="vd"></div>
+  <div class="note">表里的数由页面算出：底数保留六位小数，其余保留十位小数。差商永远算不到正好等于 D(a)，因为 Δx 不是 0；Δx 越小，差商越靠近 D(a)。D(a) 那一行由页面直接算出。</div>
+</div>
+
+<div class="col">
+  <svg id="cv" width="520" height="455" viewBox="0 0 520 455" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div class="lg">
+    <span><i style="border-color:#2F6FE0"></i>a 的 x 次方</span>
+    <span><i style="border-color:#E8743B"></i>过 (0, 1) 和 (Δx, a<sup>Δx</sup>) 的割线</span>
+    <span><i style="border-color:#3E9B3A"></i>(0, 1) 处的切线，斜率 D(a)</span>
+  </div>
+  <div class="note">两条线重合得越好，说明 Δx 越小。绿色切线和虚线 y = 1 + x 重合时，差商正好趋近 1，这时的底数就是 e。</div>
+</div>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const sa = document.getElementById("sa"), sh = document.getElementById("sh");
+
+// 滑块位置换算：底数 1.5 到 10，改动量 1 到 0.000001（对数刻度）
+function aFromSlider(v){ return 1.5 + (10 - 1.5) * v / 100000; }
+function sliderFromA(a){ return Math.round((a - 1.5) / (10 - 1.5) * 100000); }
+let aVal = 2;   // 按钮设的底数是精确值，滑块只是跟着动
+function hFromSlider(v){ return Math.pow(10, -6 * v / 600); }
+function sliderFromH(h){ return Math.round(-Math.log10(h) / 6 * 600); }
+
+function fx(v, n){ return v.toFixed(n).replace(/-/g, "−"); }
+
+function draw(a, h){
+  const sv = document.getElementById("cv");
+  while (sv.firstChild) sv.removeChild(sv.firstChild);
+  const L = 56, R = 500, T = 24, B = 380;
+  const x0 = -1.4, x1 = 1.4, y0 = 0, y1 = 4;
+  const px = x => L + (x - x0) / (x1 - x0) * (R - L);
+  const py = y => B - (y - y0) / (y1 - y0) * (B - T);
+  function add(tag, at){ const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]); sv.appendChild(e); return e; }
+  function txt(x, y, s, c, sz, an){ const e = add("text", {x:x, y:y, fill:c||"#1F2937",
+    "font-size":sz||12, "text-anchor":an||"middle",
+    "font-family":"Cambria Math, serif"}); e.textContent = s; return e; }
+  for (let g = -1; g <= 1; g++) add("line", {x1:px(g), y1:T, x2:px(g), y2:B,
+    stroke:"#E7ECF3", "stroke-width":1});
+  for (let g = 1; g <= 4; g++) add("line", {x1:L, y1:py(g), x2:R, y2:py(g),
+    stroke:"#E7ECF3", "stroke-width":1});
+  add("line", {x1:L, y1:py(0), x2:R, y2:py(0), stroke:"#9AA6B6", "stroke-width":1.4});
+  add("line", {x1:px(0), y1:T, x2:px(0), y2:B, stroke:"#9AA6B6", "stroke-width":1.4});
+  txt(R + 12, py(0) + 4, "x", "#1F2937", 13);
+  txt(px(0) + 14, T + 2, "y", "#1F2937", 13);
+  for (let g = -1; g <= 1; g++) if (g) txt(px(g), py(0) + 16,
+    String(g).replace("-", "\u2212"), "#9AA6B6", 11);
+  for (let g = 1; g <= 4; g++) txt(L - 14, py(g) + 4, String(g), "#9AA6B6", 11);
+
+  function curve(f, c, w, dash){
+    let d = "", on = false;
+    for (let i = 0; i <= 300; i++){
+      const x = x0 + (x1 - x0) * i / 300, y = f(x);
+      if (!isFinite(y) || y < y0 || y > y1){ on = false; continue; }
+      d += (on ? " L " : " M ") + px(x).toFixed(1) + " " + py(y).toFixed(1); on = true;
+    }
+    const e = add("path", {d:d, fill:"none", stroke:c, "stroke-width":w});
+    if (dash) e.setAttribute("stroke-dasharray", dash);
+  }
+  const D = Math.log(a);
+  const sec = (Math.pow(a, h) - 1) / h;
+  curve(x => Math.pow(a, x), "#2F6FE0", 2.4);
+  curve(x => 1 + x, "#9AA6B6", 1.3, "4 4");
+  curve(x => 1 + sec * x, "#E8743B", 1.8);
+  curve(x => 1 + D * x, "#3E9B3A", 1.8, "7 5");
+  add("circle", {cx:px(0), cy:py(1), r:5, fill:"#8E44AD"});
+  txt(px(0) - 30, py(1) - 8, "(0, 1)", "#8E44AD", 12);
+  const hv = Math.min(h, 1.2), yv = Math.pow(a, hv);
+  if (yv <= y1) { add("circle", {cx:px(hv), cy:py(yv), r:4, fill:"#E8743B"}); }
+  txt((L + R) / 2, B + 30, "割线斜率 " + fx(sec, 6) + "　　切线斜率 " + fx(D, 6),
+      "#1F2937", 14);
+  txt((L + R) / 2, B + 54, "虚灰线是 y = 1 + x（斜率 1）", "#9AA6B6", 12);
+}
+
+function update(){
+  const a = aVal, h = hFromSlider(+sh.value);
+  const p = Math.pow(a, h), r = (p - 1) / h, D = Math.log(a);
+  document.getElementById("va").textContent = fx(a, 6);
+  document.getElementById("vh").textContent = fx(h, 10);
+  document.getElementById("t_a").textContent = fx(a, 6);
+  document.getElementById("t_h").textContent = fx(h, 10);
+  document.getElementById("t_p").textContent = fx(p, 10);
+  document.getElementById("t_m").textContent = fx(p - 1, 10);
+  document.getElementById("t_r").textContent = fx(r, 10);
+  document.getElementById("t_d").textContent = fx(D, 10);
+  document.getElementById("t_e").textContent = fx(r - D, 10);
+  const vd = document.getElementById("vd");
+  vd.className = "verdict " + (Math.abs(D - 1) < 5e-5 ? "hit" : (D < 1 ? "lo" : "hi"));
+  if (Math.abs(D - 1) < 5e-5)
+    vd.innerHTML = "D(a) = <b>" + fx(D, 6) + "</b>，在六位小数上已经等于 1：这个底数已经落在 e = 2.718282 附近";
+  else if (D < 1)
+    vd.innerHTML = "D(a) = <b>" + fx(D, 6) + "</b>，比 1 小，底数还要往大里调";
+  else
+    vd.innerHTML = "D(a) = <b>" + fx(D, 6) + "</b>，比 1 大，底数还要往小里调";
+  draw(a, h);
+}
+
+sa.oninput = () => { aVal = aFromSlider(+sa.value); update(); };
+sh.oninput = update;
+for (const b of document.querySelectorAll("button[data-a]"))
+  b.onclick = () => { aVal = +b.dataset.a; sa.value = sliderFromA(aVal); update(); };
+sh.value = sliderFromH(0.001);
+aVal = 2;
+sa.value = sliderFromA(aVal);
+update();
+</script>
+</body>
+</html>

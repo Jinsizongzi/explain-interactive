@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>溢出与减最大值</title>
+<style>
+:root{
+  --input:#2F6FE0; --comp1:#E8743B; --comp2:#0E96B8; --output:#8E44AD;
+  --state:#E9A913; --bad:#D64545; --good:#3E9B3A; --neutral:#9AA6B6;
+  --light:#E7ECF3; --bg:#FFFFFF; --text:#1F2937;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:24px 28px;background:var(--bg);color:var(--text);
+     font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.7}
+h1{font-size:21px;margin:0 0 6px}
+.sub{color:var(--neutral);font-size:13px;margin-bottom:18px}
+.ctrl{border:1px solid var(--light);border-radius:9px;padding:14px 16px;margin-bottom:16px}
+.row{display:flex;align-items:center;gap:12px;margin:9px 0}
+.row label{width:96px;color:var(--neutral);font-size:13px}
+input[type=range]{flex:1;accent-color:var(--input)}
+.val{width:90px;text-align:right;font-family:"Cambria Math",serif;font-size:16px}
+button{border:1px solid var(--neutral);background:#fff;color:var(--text);border-radius:6px;
+       padding:4px 12px;margin:3px 4px 0 0;cursor:pointer;font-size:13px;font-family:inherit}
+button:hover{background:var(--light)}
+button.on{border-color:var(--input);background:rgba(47,111,224,.12);color:var(--input);
+          font-weight:bold}
+.wrap{display:flex;gap:22px;align-items:stretch;flex-wrap:wrap}
+.pane{flex:1 1 430px;min-width:400px;border-radius:9px;padding:12px 16px 16px}
+.pane h2{font-size:15px;margin:4px 0 10px}
+.left{border:1px solid var(--bad);background:rgba(214,69,69,.05)}
+.right{border:1px solid var(--good);background:rgba(62,155,58,.05)}
+table{border-collapse:collapse;width:100%;font-family:"Cambria Math",serif;font-size:14px}
+th,td{border:1px solid var(--light);padding:5px 8px;text-align:right;background:#fff}
+th{background:var(--light);font-weight:bold;font-size:12px;
+   font-family:"Microsoft YaHei",sans-serif}
+td.k{text-align:left;font-family:"Microsoft YaHei",sans-serif;font-size:12px;
+     color:var(--neutral)}
+td.of{background:rgba(214,69,69,.18);color:var(--bad);font-weight:bold}
+td.ok{color:var(--good)}
+.bar{margin-top:16px;border:1px solid var(--output);background:rgba(142,68,173,.07);
+     border-radius:9px;padding:12px 16px;font-family:"Cambria Math",serif;font-size:16px}
+.bar span.k{font-family:"Microsoft YaHei",sans-serif;font-size:13px;color:var(--neutral);
+            display:inline-block;width:190px}
+.note{color:var(--neutral);font-size:13px;margin-top:12px}
+</style>
+</head>
+<body>
+<h1>溢出与减最大值</h1>
+<div class="sub">三个分值各取一次 e 的次方再除以三者之和，得到三个加起来等于 1 的比例。左栏按字面算，右栏先把每个分值减去最大的那个再算。页面按所选精度的上下限判定每一步是否超出范围。最大数：半精度 65504，单精度 3.4028235 × 10<sup>38</sup>，双精度 1.7976931 × 10<sup>308</sup>；能正常表示的最小正数：半精度 6.1 × 10<sup>−5</sup>，单精度 1.18 × 10<sup>−38</sup>，双精度 2.2 × 10<sup>−308</sup>，比它还小算下溢。</div>
+
+<div class="ctrl">
+  <div class="row"><label>分值一</label><input type="range" id="s0" min="-900" max="900" value="90"><span class="val" id="v0"></span></div>
+  <div class="row"><label>分值二</label><input type="range" id="s1" min="-900" max="900" value="91"><span class="val" id="v1"></span></div>
+  <div class="row"><label>分值三</label><input type="range" id="s2" min="-900" max="900" value="92"><span class="val" id="v2"></span></div>
+  <div class="row"><label>精度</label>
+    <span>
+      <button class="prec" data-p="16">半精度</button>
+      <button class="prec on" data-p="32">单精度</button>
+      <button class="prec" data-p="64">双精度</button>
+    </span>
+  </div>
+  <div class="row"><label>整组分值</label>
+    <span>
+      <button data-s="0,1,2">0、1、2</button>
+      <button data-s="90,91,92">90、91、92</button>
+      <button data-s="10,11,12">10、11、12</button>
+      <button data-s="-100,91,92">−100、91、92</button>
+      <button data-s="800,801,802">800、801、802</button>
+    </span>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="pane left">
+    <h2>直接算</h2>
+    <table id="tl"></table>
+  </div>
+  <div class="pane right">
+    <h2>先减去最大的那个分值</h2>
+    <table id="tr"></table>
+  </div>
+</div>
+
+<div class="bar">
+  <div><span class="k">左栏算出的三个比例</span><b id="wl"></b></div>
+  <div><span class="k">右栏算出的三个比例</span><b id="wr"></b></div>
+  <div><span class="k">在对数里算的那个数</span><b id="lse"></b></div>
+</div>
+<div class="note">右栏每一项都落在 0 和 1 之间，和在 1 和 3 之间，所以无论分值多大都不会超出。左栏在半精度下 11.09 就到顶，在单精度下 88.72 到顶；分值差得太远时，左栏小的那个还会下溢。比例保留十位小数。</div>
+
+<script>
+const MAXV = {16: 65504, 32: 3.4028235e38, 64: 1.7976931348623157e308};
+// 各精度能正常表示的最小正数，比它还小就算下溢
+const MINV = {16: 6.103515625e-5, 32: 1.1754944e-38, 64: 2.2250738585072014e-308};
+let prec = 32;
+const sl = [document.getElementById("s0"), document.getElementById("s1"),
+            document.getElementById("s2")];
+
+function fx(v, d){ return v.toFixed(d).replace(/-/g, "−"); }
+function sci(v){
+  if (!isFinite(v)) return "超出范围";
+  if (v === 0) return "0";
+  const e = Math.floor(Math.log10(Math.abs(v)));
+  if (e >= -4 && e <= 6) return fx(v, 6);
+  return fx(v / Math.pow(10, e), 4) + " × 10" + String(e).replace(/-/g, "−")
+         .split("").map(c => "⁻⁰¹²³⁴⁵⁶⁷⁸⁹"["−0123456789".indexOf(c)]).join("");
+}
+function row(tb, k, cells, cls){
+  const tr = document.createElement("tr");
+  const td0 = document.createElement("td"); td0.className = "k"; td0.textContent = k;
+  tr.appendChild(td0);
+  for (const c of cells){
+    const td = document.createElement("td");
+    td.textContent = c; if (cls) td.className = cls; tr.appendChild(td);
+  }
+  tb.appendChild(tr);
+}
+function head(tb, cells){
+  const tr = document.createElement("tr");
+  for (const c of cells){ const th = document.createElement("th");
+    th.textContent = c; tr.appendChild(th); }
+  tb.appendChild(tr);
+}
+
+function update(){
+  const x = sl.map(s => +s.value);
+  x.forEach((v, i) => document.getElementById("v" + i).textContent = fx(v, 0));
+  const MAX = MAXV[prec], MIN = MINV[prec];
+
+  // 左栏：按字面算
+  const tl = document.getElementById("tl"); tl.innerHTML = "";
+  head(tl, ["这一步", "第一个", "第二个", "第三个"]);
+  row(tl, "分值", x.map(v => fx(v, 0)));
+  const ex = x.map(v => Math.exp(v));
+  const over = ex.map(v => !isFinite(v) || v > MAX);
+  const tr0 = document.createElement("tr");
+  const t0 = document.createElement("td"); t0.className = "k";
+  t0.textContent = "各取 e 的次方"; tr0.appendChild(t0);
+  ex.forEach((v, i) => { const td = document.createElement("td");
+    const under = !over[i] && v < MIN;
+    td.textContent = over[i] ? "溢出" : (under ? "下溢" : sci(v));
+    td.className = (over[i] || under) ? "of" : "ok"; tr0.appendChild(td); });
+  tl.appendChild(tr0);
+  const anyOver = over.some(Boolean);
+  const sum = ex.reduce((a, b) => a + b, 0);
+  const sumOver = anyOver || !isFinite(sum) || sum > MAX;
+  const sumZero = !sumOver && sum < MIN;   // 三项都下溢，除不出数
+  const bad = sumOver || sumZero;
+  row(tl, "三者之和", [sumOver ? "溢出" : (sumZero ? "下溢" : sci(sum)), "", ""],
+      bad ? "of" : "ok");
+  row(tl, "各除以总和", bad ? ["算不出", "算不出", "算不出"]
+      : ex.map(v => fx(v / sum, 10)), bad ? "of" : "ok");
+
+  // 右栏：先减去最大的那个分数
+  const m = Math.max(...x);
+  const tb = document.getElementById("tr"); tb.innerHTML = "";
+  head(tb, ["这一步", "第一个", "第二个", "第三个"]);
+  row(tb, "分值各减 " + fx(m, 0), x.map(v => fx(v - m, 0)));
+  const ey = x.map(v => Math.exp(v - m));
+  row(tb, "各取 e 的次方", ey.map(v => fx(v, 10)), "ok");
+  const sy = ey.reduce((a, b) => a + b, 0);
+  row(tb, "三者之和", [fx(sy, 10), "", ""], "ok");
+  const w = ey.map(v => v / sy);
+  row(tb, "各除以总和", w.map(v => fx(v, 10)), "ok");
+
+  document.getElementById("wl").textContent = sumOver ? "算不出（中间量溢出）"
+    : (sumZero ? "算不出（三个次方值都下溢）"
+       : ex.map(v => fx(v / sum, 10)).join("　"));
+  document.getElementById("wr").textContent = w.map(v => fx(v, 10)).join("　");
+  document.getElementById("lse").textContent =
+    fx(m, 0) + " + ln " + fx(sy, 10) + " = " + fx(m + Math.log(sy), 10);
+}
+
+sl.forEach(s => s.oninput = update);
+for (const b of document.querySelectorAll("button.prec"))
+  b.onclick = () => {
+    prec = +b.dataset.p;
+    document.querySelectorAll("button.prec").forEach(o => o.classList.remove("on"));
+    b.classList.add("on"); update();
+  };
+for (const b of document.querySelectorAll("button[data-s]"))
+  b.onclick = () => {
+    b.dataset.s.split(",").forEach((v, i) => sl[i].value = v); update();
+  };
+update();
+</script>
+</body>
+</html>

@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>割线到切线</title>
+<style>
+  :root{
+    --input:#2F6FE0; --comp1:#E8743B; --comp2:#0E96B8; --output:#8E44AD;
+    --state:#E9A913; --bad:#D64545; --good:#3E9B3A; --neutral:#9AA6B6;
+    --light:#E7ECF3; --bg:#FFFFFF; --text:#1F2937;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:var(--bg);color:var(--text);
+       font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.7}
+  h1{font-size:21px;margin:0 0 6px}
+  .sub{color:var(--neutral);font-size:13px;margin-bottom:18px}
+  .wrap{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:1 1 440px;min-width:400px}
+  .card{border:1px solid var(--light);border-radius:9px;padding:14px 16px;margin-bottom:16px}
+  .card h2{font-size:15px;margin:0 0 10px}
+  button{font-family:inherit;font-size:14px;padding:6px 12px;margin:0 6px 6px 0;
+         border:1px solid var(--neutral);border-radius:6px;background:#fff;color:var(--text);cursor:pointer}
+  button:hover{background:var(--light)}
+  button.on{background:var(--input);border-color:var(--input);color:#fff}
+  input[type=range]{width:300px;vertical-align:middle}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin-top:8px}
+  th,td{border:1px solid var(--light);padding:5px 8px;text-align:center}
+  th{background:#F4F7FB;font-weight:bold}
+  .note{font-size:13px;color:var(--neutral);margin-top:8px}
+  .big{font-size:17px;font-weight:bold}
+  .bad{color:var(--bad)} .good{color:var(--good)}
+  .out{color:var(--output)} .in{color:var(--input)} .c1{color:var(--comp1)}
+  svg{display:block;max-width:100%}
+  .row{margin:7px 0}
+  .verdict{font-size:16px;font-weight:bold;padding:8px 12px;border-radius:7px;margin-top:10px}
+  .ok{background:#EAF6EA;color:var(--good)}
+  .no{background:#FBEAEA;color:var(--bad)}
+</style>
+</head>
+<body>
+<h1>割线到切线</h1>
+<div class="sub">一个点不动，另一点越靠越近。割线的斜率就是函数值的变化量除以改动量，它的极限是这一点的导数，也就是切线的斜率。</div>
+
+<div class="card">
+  <h2>选函数</h2>
+  <div id="picker"></div>
+  <div class="row" id="formula"></div>
+</div>
+
+<div class="wrap">
+  <div class="col">
+    <div class="card">
+      <h2>改动量</h2>
+      <div class="row">
+        <b class="in" id="delta-abs">|Δw|</b> =
+        <input type="range" id="dslider" min="0" max="100" value="70">
+        <b class="in" id="dval"></b>
+      </div>
+      <div class="row">
+        方向：<button id="side-r" class="on">往右（Δw &gt; 0）</button><button id="side-l">往左（Δw &lt; 0）</button>
+      </div>
+      <div class="row">
+        直接取：
+        <button data-d="1">|Δw| = 1</button>
+        <button data-d="0.5">0.5</button>
+        <button data-d="0.2">0.2</button>
+        <button data-d="0.1">0.1</button>
+        <button data-d="0.01">0.01</button>
+        <button data-d="0.001">0.001</button>
+      </div>
+      <table id="tbl"><tbody></tbody></table>
+      <div id="verdict" class="verdict"></div>
+      <div class="note" id="extra"></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <h2>图像、割线和切线</h2>
+      <svg id="plot" width="540" height="430" viewBox="0 0 540 430"></svg>
+      <div class="note">蓝点是不动的点，橙点是另一点，橙色直线是过这两点的割线；绿色直线是这一点的切线，没有切线时不画。
+      <span id="delta-note">把 |Δw| 调小，橙色直线就越来越贴着绿色直线。</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const P = {input:"#2F6FE0",comp1:"#E8743B",comp2:"#0E96B8",output:"#8E44AD",
+           state:"#E9A913",bad:"#D64545",good:"#3E9B3A",neutral:"#9AA6B6",
+           light:"#E7ECF3",text:"#1F2937"};
+
+const FUNCS = [
+  { key:"E", name:"E(w) = (w − 2)²",
+    formula:"E(w) = (w − 2)²，不动的点 w = 4，E(4) = 4，导数 E′(w) = 2w − 4",
+    a:4, vname:"w", fname:"E",
+    f:w => (w-2)*(w-2),
+    d:w => 2*w - 4,
+    exists:true, span:1.3, yspan:5.2,
+    tip:"导数是 E′(4) = 4，切线是 y = 4w − 12。比值等于 4 + Δw，所以 Δw 取 0.1 时比值正好 4.1。" },
+  { key:"sq", name:"y = √x",
+    formula:"y = √x，不动的点 x = 4，√4 = 2，导数 1 ÷ (2√x)",
+    a:4, vname:"x", fname:"y",
+    f:x => Math.sqrt(x),
+    d:x => 1/(2*Math.sqrt(x)),
+    exists:true, span:2.2, yspan:1.1,
+    tip:"导数是 1 ÷ (2 × 2) = 0.25。这正是上一篇用有理化算出的那个 0.25。" },
+  { key:"sin", name:"y = sin x",
+    formula:"y = sin x（x 用弧度），不动的点 x = 1，sin 1 = 0.841471，导数 cos x",
+    a:1, vname:"x", fname:"y",
+    f:x => Math.sin(x),
+    d:x => Math.cos(x),
+    exists:true, span:1.4, yspan:1.1,
+    tip:"导数是 cos 1 = 0.540302。改动量取 0.001 时，往右的比值是 0.5398814804，往左是 0.5407229513，都在 0.540302 两侧。" },
+  { key:"abs", name:"y = |x|",
+    formula:"y = |x|，不动的点 x = 0，|0| = 0",
+    a:0, vname:"x", fname:"y",
+    f:x => Math.abs(x),
+    d:x => null,
+    exists:false, span:1.6, yspan:1.2,
+    tip:"这一点没有导数：往右的比值永远是 1，往左永远是 −1，|Δx| 再小也不变。" },
+];
+
+let cur = FUNCS[0];
+let dAbs = 0.1;
+let side = 1;
+
+function dFromSlider(v){
+  const lo = Math.log10(0.001), hi = Math.log10(1);
+  const e = Math.pow(10, lo + (hi-lo)*v/100);
+  const p = Math.pow(10, Math.floor(Math.log10(e)));
+  return Math.round(e/p*10)/10*p;
+}
+function sliderFromD(e){
+  const lo = Math.log10(0.001), hi = Math.log10(1);
+  return Math.round(100 * (Math.log10(Math.min(1, Math.max(0.001, e))) - lo) / (hi - lo));
+}
+function fmt(v,n){
+  if (v === null || !isFinite(v)) return "—";
+  let s = v.toFixed(n);
+  if (s.indexOf(".") >= 0) s = s.replace(/0+$/,"").replace(/\.$/,"");
+  if (s === "-0") s = "0";
+  return s.replace("-","−");
+}
+
+function buildPicker(){
+  const box = document.getElementById("picker");
+  box.innerHTML = "";
+  FUNCS.forEach(fn => {
+    const b = document.createElement("button");
+    b.textContent = fn.name;
+    b.className = (fn === cur) ? "on" : "";
+    b.onclick = () => { cur = fn; buildPicker(); render(); };
+    box.appendChild(b);
+  });
+  document.getElementById("formula").innerHTML = "<b>" + cur.formula + "</b>";
+}
+
+function render(){
+  const dv = "Δ" + cur.vname;
+  document.getElementById("delta-abs").textContent = "|" + dv + "|";
+  document.getElementById("side-r").textContent = "往右（" + dv + " > 0）";
+  document.getElementById("side-l").textContent = "往左（" + dv + " < 0）";
+  document.querySelector('button[data-d="1"]').textContent = "|" + dv + "| = 1";
+  document.getElementById("dval").textContent = fmt(dAbs, 6);
+  document.getElementById("side-r").className = side > 0 ? "on" : "";
+  document.getElementById("side-l").className = side < 0 ? "on" : "";
+  const a = cur.a, d = side * dAbs;
+  const y0 = cur.f(a), y1 = cur.f(a + d);
+  const dy = y1 - y0;
+  const k = dy / d;
+  const der = cur.d(a);
+  document.getElementById("delta-note").textContent = der === null
+    ? "切换“往右/往左”可以看到两边斜率分别是 1 和 −1；橙色割线只有当前方向的一条。"
+    : "把 |" + dv + "| 调小，橙色直线就越来越贴着绿色直线。";
+  const rows = [
+    ["不动的点", cur.vname + " = " + fmt(a, 6), cur.fname + " = " + fmt(y0, 10)],
+    ["另一点", cur.vname + " = " + fmt(a + d, 10), cur.fname + " = " + fmt(y1, 10)],
+    ["改动量 " + dv, fmt(d, 10), "函数值的变化量 " + fmt(dy, 10)],
+    ["割线的斜率 = 变化量 ÷ 改动量", fmt(k, 10), der === null ? "这一点没有切线" : "切线的斜率 " + fmt(der, 10)],
+  ];
+  const tb = document.querySelector("#tbl tbody");
+  tb.innerHTML = "";
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td style='text-align:left'>" + r[0] + "</td><td>" + r[1] + "</td><td>" + r[2] + "</td>";
+    tb.appendChild(tr);
+  });
+  const v = document.getElementById("verdict");
+  if (der === null){
+    v.className = "verdict no";
+    v.textContent = "右边割线斜率 1、左边割线斜率 −1，两边不一致，所以不可导";
+  } else {
+    const gap = Math.abs(k - der);
+    v.className = "verdict ok";
+    v.textContent = "割线斜率 " + fmt(k, 10) + "，切线斜率 " + fmt(der, 10) + "，相差 " + fmt(gap, 10);
+  }
+  document.getElementById("extra").textContent = cur.tip;
+  draw(a, d, y0, y1, k, der);
+}
+
+function draw(a, d, y0, y1, k, der){
+  const svg = document.getElementById("plot");
+  const W = 540, H = 430, L = 60, R = 24, T = 20, B = 44;
+  const x0 = a - cur.span, x1 = a + cur.span;
+  const ylo = y0 - cur.yspan, yhi = y0 + cur.yspan;
+  const px = x => L + (W-L-R)*(x-x0)/(x1-x0);
+  const py = y => H-B - (H-T-B)*(y-ylo)/(yhi-ylo);
+  let s = "";
+  const line=(p,q,r,t,col,w,dash)=>s+=`<line x1="${p.toFixed(1)}" y1="${q.toFixed(1)}" x2="${r.toFixed(1)}" y2="${t.toFixed(1)}" stroke="${col}" stroke-width="${w}"${dash?` stroke-dasharray="${dash}"`:""}/>`;
+  const txt=(p,q,t,col,sz,an)=>s+=`<text x="${p.toFixed(1)}" y="${q.toFixed(1)}" fill="${col}" font-size="${sz||12}" text-anchor="${an||"middle"}" font-family="Microsoft YaHei, sans-serif">${t}</text>`;
+
+  const stepx = niceStep(x1-x0), stepy = niceStep(yhi-ylo);
+  for (let v = Math.ceil(x0/stepx)*stepx; v <= x1+1e-9; v += stepx){
+    line(px(v),T,px(v),H-B,P.light,1); txt(px(v),H-B+18,trim(v),P.neutral,11);
+  }
+  for (let v = Math.ceil(ylo/stepy)*stepy; v <= yhi+1e-9; v += stepy){
+    line(L,py(v),W-R,py(v),P.light,1); txt(L-8,py(v)+4,trim(v),P.neutral,11,"end");
+  }
+  const ay = Math.min(Math.max(ylo,0),yhi);
+  line(L,py(ay),W-R,py(ay),P.neutral,1.4);
+  if (x0 <= 0 && 0 <= x1) line(px(0),T,px(0),H-B,P.neutral,1.4);
+
+  // 切线
+  if (der !== null){
+    const tl = x => y0 + der*(x-a);
+    clipLine(x => tl(x));
+  }
+  // 割线
+  clipLine(x => y0 + k*(x-a), P.comp1, 2.2);
+
+  function clipLine(g, col, w){
+    col = col || P.good; w = w || 2.2;
+    let path = "", pen = false;
+    for (let i = 0; i <= 400; i++){
+      const x = x0 + (x1-x0)*i/400, y = g(x);
+      if (!isFinite(y) || y < ylo || y > yhi){ pen = false; continue; }
+      path += (pen ? " L " : " M ") + px(x).toFixed(1) + " " + py(y).toFixed(1);
+      pen = true;
+    }
+    s += `<path d="${path}" fill="none" stroke="${col}" stroke-width="${w}"/>`;
+  }
+
+  // 曲线
+  let path = "", pen = false;
+  for (let i = 0; i <= 1200; i++){
+    const x = x0 + (x1-x0)*i/1200, y = cur.f(x);
+    if (!isFinite(y) || y < ylo || y > yhi){ pen = false; continue; }
+    path += (pen ? " L " : " M ") + px(x).toFixed(1) + " " + py(y).toFixed(1);
+    pen = true;
+  }
+  s += `<path d="${path}" fill="none" stroke="${P.output}" stroke-width="2.4"/>`;
+  s += `<circle cx="${px(a).toFixed(1)}" cy="${py(y0).toFixed(1)}" r="5.5" fill="${P.input}"/>`;
+  if (y1 >= ylo && y1 <= yhi)
+    s += `<circle cx="${px(a+d).toFixed(1)}" cy="${py(y1).toFixed(1)}" r="5.5" fill="${P.comp1}"/>`;
+  txt(W-R, py(ay)-8, cur.vname, P.text, 13, "end");
+  txt(px(a), T-4, "不动的点 " + cur.vname + " = " + trim(a), P.input, 12);
+  svg.innerHTML = s;
+}
+
+function niceStep(span){
+  const raw = span/6, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const c = [1,2,5,10].find(k => raw <= k*p) || 10;
+  return c*p;
+}
+function trim(v){
+  let s = Math.abs(v) < 1e-9 ? "0" : v.toFixed(4).replace(/0+$/,"").replace(/\.$/,"");
+  return s.replace("-","−");
+}
+
+document.getElementById("dslider").oninput = e => { dAbs = dFromSlider(+e.target.value); render(); };
+document.querySelectorAll("button[data-d]").forEach(b => {
+  b.onclick = () => {
+    dAbs = parseFloat(b.dataset.d);
+    document.getElementById("dslider").value = sliderFromD(dAbs);
+    render();
+  };
+});
+document.getElementById("side-r").onclick = () => { side = 1; render(); };
+document.getElementById("side-l").onclick = () => { side = -1; render(); };
+document.getElementById("dslider").value = sliderFromD(dAbs);
+buildPicker();
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>链式法则</title>
+<style>
+  :root{
+    --input:#2F6FE0; --comp1:#E8743B; --comp2:#0E96B8; --output:#8E44AD;
+    --state:#E9A913; --bad:#D64545; --good:#3E9B3A; --neutral:#9AA6B6;
+    --light:#E7ECF3; --bg:#FFFFFF; --text:#1F2937;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:var(--bg);color:var(--text);
+       font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.7}
+  h1{font-size:21px;margin:0 0 6px}
+  .sub{color:var(--neutral);font-size:13px;margin-bottom:18px}
+  .wrap{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:1 1 450px;min-width:410px}
+  .card{border:1px solid var(--light);border-radius:9px;padding:14px 16px;margin-bottom:16px}
+  .card h2{font-size:15px;margin:0 0 10px}
+  button{font-family:inherit;font-size:14px;padding:6px 12px;margin:0 6px 6px 0;
+         border:1px solid var(--neutral);border-radius:6px;background:#fff;color:var(--text);cursor:pointer}
+  button:hover{background:var(--light)}
+  button.on{background:var(--input);border-color:var(--input);color:#fff}
+  input[type=range]{width:290px;vertical-align:middle}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin-top:8px}
+  th,td{border:1px solid var(--light);padding:5px 8px;text-align:center}
+  th{background:#F4F7FB;font-weight:bold}
+  .note{font-size:13px;color:var(--neutral);margin-top:8px}
+  .out{color:var(--output)} .in{color:var(--input)} .st{color:var(--state)}
+  .good{color:var(--good)}
+  svg{display:block;max-width:100%}
+  .vec{display:inline-flex;align-items:center;vertical-align:middle;line-height:1.05;margin:0 3px;font-size:.9em}
+  .vec .br{font-size:1.5em;font-weight:300;line-height:1}
+  .vec .vals{display:inline-flex;flex-direction:column;text-align:center;padding:0 2px}
+  .row{margin:7px 0}
+  .verdict{font-size:16px;font-weight:bold;padding:8px 12px;border-radius:7px;margin-top:10px;
+           background:#EAF6EA;color:var(--good)}
+</style>
+</head>
+<body>
+<h1>链式法则</h1>
+<div class="sub">一个复合的式子分成几层。每一层算出自己的比值，各层的比值相乘，就是整体的比值；改动量趋于 0 时它等于按链式法则算出的导数。</div>
+
+<div class="card">
+  <h2>选式子</h2>
+  <div id="picker"></div>
+  <div class="row" id="formula"></div>
+</div>
+
+<div class="wrap">
+  <div class="col">
+    <div class="card">
+      <h2>调两个数</h2>
+      <div class="row">
+        出发点 <b class="in">w</b> =
+        <input type="range" id="wslider" min="0" max="600" value="400">
+        <b class="in" id="wval"></b>
+      </div>
+      <div class="row">
+        改动量 <b class="st">Δw</b> =
+        <input type="range" id="dslider" min="0" max="100" value="66">
+        <b class="st" id="dval"></b>
+        <span class="note">（0.001 到 1）</span>
+      </div>
+      <div class="row">
+        直接取：<button data-d="0.5">Δw = 0.5</button><button data-d="0.1">0.1</button>
+        <button data-d="0.01">0.01</button><button data-d="0.001">0.001</button>
+      </div>
+      <table id="tbl"><thead><tr>
+        <th>这一层做什么</th><th>输入值、输出值（改动前）</th><th>输入的改动量</th><th>输出的变化量</th><th>比值</th>
+      </tr></thead><tbody></tbody></table>
+      <div id="verdict" class="verdict"></div>
+      <div class="note" id="extra"></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <h2>一层一层的比值</h2>
+      <svg id="plot" width="520" height="340" viewBox="0 0 520 340"></svg>
+      <div class="note">每个方框是各阶段的值，上面一行改动前、下面一行改动后；两个方框之间的横箭头才是这一层，横箭头下方是这一层的比值。方框内的 ↓ 只表示改动前→改动后。
+      把各层的比值乘起来，就得到最右边那个整体的比值。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const P = {input:"#2F6FE0",comp1:"#E8743B",comp2:"#0E96B8",output:"#8E44AD",
+           state:"#E9A913",bad:"#D64545",good:"#3E9B3A",neutral:"#9AA6B6",
+           light:"#E7ECF3",text:"#1F2937"};
+
+const CASES = [
+  { key:"E", name:"(w − 2)²",
+    formula:"E(w) = (w − 2)²，导数 2(w − 2) = 2w − 4",
+    layers:[ {label:"减 2", f:w => w - 2},
+             {label:"平方", f:t => t*t} ],
+    d:w => 2*(w-2),
+    rule:"外层 2t 在 t = w − 2 处取值，内层的导数是 1，相乘得 2(w − 2)。" },
+  { key:"cube", name:"(2w − 1)³",
+    formula:"y = (2w − 1)³，导数 6(2w − 1)²",
+    layers:[ {label:"乘 2 再减 1", f:w => 2*w - 1},
+             {label:"三次方", f:t => t*t*t} ],
+    d:w => 6*(2*w-1)*(2*w-1),
+    rule:"外层 3t² 在 t = 2w − 1 处取值，内层的导数是 2，相乘得 6(2w − 1)²。" },
+  { key:"len", name:"√(w² + 9)",
+    formula:"y = √(w² + 9)，也就是向量 <span class='vec'><span class='br'>[</span><span class='vals'><span>w</span><span>3</span></span><span class='br'>]</span></span> 的长度，导数 w ÷ √(w² + 9)",
+    layers:[ {label:"平方再加 9", f:w => w*w + 9},
+             {label:"开平方", f:t => Math.sqrt(t)} ],
+    d:w => w/Math.sqrt(w*w+9),
+    rule:"外层 1 ÷ (2√t) 在 t = w² + 9 处取值，内层的导数是 2w，相乘得 w ÷ √(w² + 9)。" },
+];
+
+let cur = CASES[0];
+let w0 = 4, dw = 0.1;
+
+function dFromSlider(v){
+  const lo = Math.log10(0.001), hi = Math.log10(1);
+  const e = Math.pow(10, lo + (hi-lo)*v/100);
+  const p = Math.pow(10, Math.floor(Math.log10(e)));
+  return Math.round(e/p*10)/10*p;
+}
+function sliderFromD(e){
+  const lo = Math.log10(0.001), hi = Math.log10(1);
+  return Math.round(100 * (Math.log10(Math.min(1, Math.max(0.001, e))) - lo) / (hi - lo));
+}
+function fmt(v,n){
+  if (v === null || !isFinite(v)) return "—";
+  let s = v.toFixed(n);
+  if (s.indexOf(".") >= 0) s = s.replace(/0+$/,"").replace(/\.$/,"");
+  if (s === "-0") s = "0";
+  return s.replace("-","−");
+}
+
+function buildPicker(){
+  const box = document.getElementById("picker");
+  box.innerHTML = "";
+  CASES.forEach(c => {
+    const b = document.createElement("button");
+    b.textContent = c.name;
+    b.className = (c === cur) ? "on" : "";
+    b.onclick = () => { cur = c; buildPicker(); render(); };
+    box.appendChild(b);
+  });
+  document.getElementById("formula").innerHTML = "<b>" + cur.formula + "</b>";
+}
+
+function chain(w){
+  const vals = [w];
+  cur.layers.forEach(L => vals.push(L.f(vals[vals.length-1])));
+  return vals;
+}
+
+function render(){
+  document.getElementById("wval").textContent = fmt(w0, 4);
+  document.getElementById("dval").textContent = fmt(dw, 6);
+  const a = chain(w0), b = chain(w0 + dw);
+  const tb = document.querySelector("#tbl tbody");
+  tb.innerHTML = "";
+  let prod = 1;
+  cur.layers.forEach((L, i) => {
+    const din = b[i] - a[i], dout = b[i+1] - a[i+1];
+    const r = dout / din;
+    prod *= r;
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td style='text-align:left'>第 " + (i+1) + " 层：" + L.label + "</td>"
+      + "<td>" + fmt(a[i], 8) + " → " + fmt(a[i+1], 8) + "</td>"
+      + "<td>" + fmt(din, 10) + "</td><td>" + fmt(dout, 10) + "</td>"
+      + "<td><b>" + fmt(r, 10) + "</b></td>";
+    tb.appendChild(tr);
+  });
+  const total = (b[b.length-1] - a[a.length-1]) / dw;
+  const der = cur.d(w0);
+  const tr = document.createElement("tr");
+  tr.innerHTML = "<td style='text-align:left'><b>整体</b></td>"
+    + "<td>输入 w = " + fmt(a[0], 8) + "，输出 " + fmt(a[a.length-1], 8) + "</td>"
+    + "<td>" + fmt(dw, 10) + "</td>"
+    + "<td>" + fmt(b[b.length-1] - a[a.length-1], 10) + "</td>"
+    + "<td><b>" + fmt(total, 8) + "</b></td>";
+  tb.appendChild(tr);
+  document.getElementById("verdict").innerHTML =
+    "各层比值相乘 = <b>" + fmt(prod, 8) + "</b>　整体比值 = <b>" + fmt(total, 8)
+    + "</b>　按法则算出的导数 = <b>" + fmt(der, 8) + "</b>";
+  document.getElementById("extra").textContent =
+    cur.rule + " 判定栏里的“各层比值相乘”和“整体比值”在每个 Δw 下都相等（这就是约分）；把 Δw 调小，它们和导数的差越来越小。";
+  draw(a, b, der);
+}
+
+function draw(a, b, der){
+  const svg = document.getElementById("plot");
+  const W = 520, H = 340;
+  const n = a.length;
+  const bw = 120, gap = (W - 20 - n*bw) / (n-1);
+  let s = "";
+  const cols = [P.input, P.state, P.output, P.comp2];
+  for (let i = 0; i < n; i++){
+    const x = 10 + i*(bw+gap), y = 70, col = cols[Math.min(i, cols.length-1)];
+    s += `<rect x="${x}" y="${y}" width="${bw}" height="62" rx="7" fill="${col}" fill-opacity="0.14" stroke="${col}" stroke-width="1.6"/>`;
+    s += `<text x="${x+bw/2}" y="${y+24}" text-anchor="middle" font-size="14" fill="${P.text}" font-family="Microsoft YaHei, sans-serif">${fmt(a[i],6)}</text>`;
+    s += `<text x="${x+bw/2}" y="${y+48}" text-anchor="middle" font-size="14" fill="${col}" font-family="Microsoft YaHei, sans-serif">↓ ${fmt(b[i],6)}</text>`;
+    s += `<text x="${x+bw/2}" y="${y-14}" text-anchor="middle" font-size="12" fill="${P.neutral}" font-family="Microsoft YaHei, sans-serif">${i === 0 ? "输入 w" : (i === n-1 ? "输出" : "中间结果")}</text>`;
+  }
+  let prod = 1;
+  for (let i = 0; i < n-1; i++){
+    const x = 10 + i*(bw+gap) + bw, x2 = x + gap;
+    const r = (b[i+1]-a[i+1]) / (b[i]-a[i]);
+    prod *= r;
+    s += `<line x1="${x+4}" y1="101" x2="${x2-8}" y2="101" stroke="${P.neutral}" stroke-width="1.6"/>`;
+    s += `<polygon points="${x2-8},101 ${x2-16},97 ${x2-16},105" fill="${P.neutral}"/>`;
+    s += `<text x="${(x+x2)/2}" y="${84}" text-anchor="middle" font-size="12" fill="${P.neutral}" font-family="Microsoft YaHei, sans-serif">${cur.layers[i].label}</text>`;
+    s += `<text x="${(x+x2)/2}" y="${126}" text-anchor="middle" font-size="12" fill="${P.comp1}" font-family="Microsoft YaHei, sans-serif">比值</text>`;
+    s += `<text x="${(x+x2)/2}" y="${144}" text-anchor="middle" font-size="12" fill="${P.comp1}" font-family="Microsoft YaHei, sans-serif">${fmt(r,10)}</text>`;
+  }
+  const parts = [];
+  for (let i = 0; i < n-1; i++)
+    parts.push(fmt((b[i+1]-a[i+1]) / (b[i]-a[i]), 10));
+  s += `<text x="${W/2}" y="210" text-anchor="middle" font-size="16" fill="${P.text}" font-family="Microsoft YaHei, sans-serif">${parts.join(" × ")} = ${fmt(prod,8)}</text>`;
+  s += `<text x="${W/2}" y="248" text-anchor="middle" font-size="14" fill="${P.neutral}" font-family="Microsoft YaHei, sans-serif">整体的比值 ${fmt((b[n-1]-a[n-1])/(b[0]-a[0]),8)}</text>`;
+  s += `<text x="${W/2}" y="288" text-anchor="middle" font-size="16" fill="${P.good}" font-weight="bold" font-family="Microsoft YaHei, sans-serif">Δw → 0 时它趋近导数 ${fmt(der,8)}</text>`;
+  s += `<text x="${W/2}" y="318" text-anchor="middle" font-size="12" fill="${P.neutral}" font-family="Microsoft YaHei, sans-serif">方框里上面一行是改动前的值，下面一行是改动后的值</text>`;
+  svg.innerHTML = s;
+}
+
+document.getElementById("wslider").oninput = e => { w0 = (+e.target.value)/100; render(); };
+document.getElementById("dslider").oninput = e => { dw = dFromSlider(+e.target.value); render(); };
+document.querySelectorAll("button[data-d]").forEach(b => {
+  b.onclick = () => {
+    dw = parseFloat(b.dataset.d);
+    document.getElementById("dslider").value = sliderFromD(dw);
+    render();
+  };
+});
+document.getElementById("dslider").value = sliderFromD(dw);
+buildPicker();
+render();
+</script>
+</body>
+</html>

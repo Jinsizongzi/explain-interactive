@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>从两侧趋近</title>
+<style>
+  :root{
+    --input:#2F6FE0; --comp1:#E8743B; --comp2:#0E96B8; --output:#8E44AD;
+    --state:#E9A913; --bad:#D64545; --good:#3E9B3A; --neutral:#9AA6B6;
+    --light:#E7ECF3; --bg:#FFFFFF; --text:#1F2937;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:var(--bg);color:var(--text);
+       font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:15px;line-height:1.7}
+  h1{font-size:21px;margin:0 0 6px}
+  .sub{color:var(--neutral);font-size:13px;margin-bottom:18px}
+  .wrap{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:1 1 420px;min-width:380px}
+  .card{border:1px solid var(--light);border-radius:9px;padding:14px 16px;margin-bottom:16px}
+  .card h2{font-size:15px;margin:0 0 10px}
+  button{font-family:inherit;font-size:14px;padding:6px 12px;margin:0 6px 6px 0;
+         border:1px solid var(--neutral);border-radius:6px;background:#fff;color:var(--text);cursor:pointer}
+  button:hover{background:var(--light)}
+  button.on{background:var(--input);border-color:var(--input);color:#fff}
+  input[type=number]{font-family:inherit;font-size:15px;padding:5px 8px;width:130px;
+         border:1px solid var(--neutral);border-radius:6px}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin-top:8px}
+  th,td{border:1px solid var(--light);padding:5px 8px;text-align:center}
+  th{background:#F4F7FB;font-weight:bold}
+  td.l{color:var(--comp1)} td.r{color:var(--comp2)} td.v{color:var(--output)}
+  .hit{background:#FFF6E0}
+  .note{font-size:13px;color:var(--neutral);margin-top:8px}
+  .big{font-size:17px;font-weight:bold}
+  .bad{color:var(--bad)} .good{color:var(--good)} .out{color:var(--output)} .in{color:var(--input)}
+  svg{display:block;max-width:100%}
+  .row{margin:6px 0}
+  code{font-family:Consolas,monospace;background:#F4F7FB;padding:1px 4px;border-radius:3px}
+</style>
+</head>
+<body>
+<h1>从两侧趋近</h1>
+<div class="sub">选一个函数，让自变量从两侧趋近一点，看函数值有没有稳定下来。</div>
+
+<div class="card">
+  <h2>选函数</h2>
+  <div id="picker"></div>
+  <div class="row" id="formula"></div>
+</div>
+
+<div class="wrap">
+  <div class="col">
+    <div class="card">
+      <h2>试一个自变量</h2>
+      <div class="row">
+        自变量 =
+        <input type="number" id="xin" step="0.001" value="4.1">
+        <button id="go">算一次</button>
+        <button id="auto">自动趋近</button>
+        <button id="clear">清空表格</button>
+      </div>
+      <div class="row" id="single"></div>
+      <table id="tbl"><thead><tr>
+        <th>自变量</th><th>与那一点的距离</th><th>函数值</th><th>与贴近的那个数的距离</th>
+      </tr></thead><tbody></tbody></table>
+      <div class="note" id="tnote"></div>
+    </div>
+    <div class="card">
+      <h2>结果</h2>
+      <div id="verdict"></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <h2>图像</h2>
+      <svg id="plot" width="520" height="420" viewBox="0 0 520 420"></svg>
+      <div class="note">差商 q(w) 和带根号的那个函数在 w = 4 处没有定义，图上在断开处画一个空心点。1 ÷ (w − 4)² 在 w = 4 处没有定义，越靠近 4 函数值越大、跑出画面，所以不画空心点；sin(1 ÷ (w − 4)) 在 w = 4 处也没有定义，而且越靠近 4 摆得越快，没有一个确定的高度可以标，所以同样不画。阶跃函数 u 在 0 处的空心点在 (0, 0)、实心点在 (0, 1)，表示 u(0) = 1。竖线标出当前的自变量。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const P = {input:"#2F6FE0",comp1:"#E8743B",comp2:"#0E96B8",output:"#8E44AD",
+           state:"#E9A913",bad:"#D64545",good:"#3E9B3A",neutral:"#9AA6B6",
+           light:"#E7ECF3",text:"#1F2937"};
+
+// 每个函数：名字、算式、目标点 a、猜测的极限、定义域是否挖掉 a、画图范围
+const FUNCS = [
+  { key:"q", name:"差商 q(w)",
+    formula:"q(w) = ((w − 2)² − 4) ÷ (w − 4)，在 w = 4 处分子分母都是 0",
+    a:4, limit:4, hole:true, xr:[2.4,5.6], yr:[2.2,5.8], vname:"w",
+    why:"分子分母都是 0，q(4) 没有定义",
+    f:w => ((w-2)*(w-2) - 4)/(w-4),
+    verdict:"每个 w ≠ 4 都有 q(w) = w，所以 w 离 4 多近，q(w) 就离 4 多近。极限是 4。" },
+  { key:"E", name:"E(w) = (w − 2)²",
+    formula:"E(w) = (w − 2)²，在 w = 4 处有定义，E(4) = 4",
+    a:4, limit:4, hole:false, xr:[2.4,5.6], yr:[-0.4,13], vname:"w",
+    f:w => (w-2)*(w-2),
+    verdict:"E 是多项式，极限等于直接代入的值：E(4) = 4。这一点上函数值和极限相等。" },
+  { key:"r", name:"带根号的 (√w − 2) ÷ (w − 4)",
+    formula:"(√w − 2) ÷ (w − 4)，在 w = 4 处分子分母都是 0",
+    a:4, limit:0.25, hole:true, xr:[1.2,8], yr:[0.15,0.45], vname:"w",
+    why:"分子分母都是 0，没有定义",
+    f:w => (Math.sqrt(w)-2)/(w-4),
+    verdict:"上下同乘 √w + 2 得 1 ÷ (√w + 2)，代入 w = 4 得 1 ÷ 4 = 0.25。极限是 0.25。" },
+  { key:"u", name:"阶跃函数 u(x)",
+    formula:"u(x)：x < 0 时 0，x ≥ 0 时 1",
+    a:0, limit:null, hole:false, xr:[-2.2,2.2], yr:[-0.5,1.7], vname:"x",
+    f:x => x < 0 ? 0 : 1,
+    verdict:"左边一律是 0，右边一律是 1，两个单侧极限不相等，所以 x → 0 时极限不存在。" },
+  { key:"inf", name:"1 ÷ (w − 4)²",
+    formula:"1 ÷ (w − 4)²，在 w = 4 处分母是 0",
+    a:4, limit:null, hole:true, xr:[2.6,5.4], yr:[-0.5,9], vname:"w",
+    why:"分母是 0，没有定义",
+    f:w => 1/((w-4)*(w-4)),
+    verdict:"w 越靠近 4，函数值越大，不停在任何一个数上，所以极限不存在。" },
+  { key:"osc", name:"sin(1 ÷ (w − 4))",
+    formula:"sin(1 ÷ (w − 4))，在 w = 4 处分母是 0",
+    a:4, limit:null, hole:true, xr:[3.2,4.8], yr:[-1.6,1.6], vname:"w",
+    why:"分母是 0，没有定义",
+    f:w => Math.sin(1/(w-4)),
+    verdict:"w 越靠近 4 摆得越快，函数值在 −1 和 1 之间跑个不停，极限不存在。注意：如果只试 w − 4 = 1 ÷ (jπ) 这些值，算出来全是 0，看着像趋近 0，其实不是。" },
+];
+
+let cur = FUNCS[0];
+let rows = [];
+
+function fmt(v, n){
+  if (v === null || v === undefined || !isFinite(v)) return "没有定义";
+  // 算出来和某个整数只差十亿分之一以内时按整数显示，免得浮点误差写成 999999.99999933
+  const r = Math.round(v);
+  if (r !== 0 && Math.abs(v - r) <= Math.abs(v) * 1e-9) return String(r).replace("-","−");
+  if (Math.abs(v) >= 1e6) return v.toFixed(0).replace("-","−");
+  let s = v.toFixed(n);
+  if (s.indexOf(".") >= 0) s = s.replace(/0+$/,"").replace(/\.$/,"");
+  return s.replace("-","−");
+}
+
+function buildPicker(){
+  const box = document.getElementById("picker");
+  box.innerHTML = "";
+  FUNCS.forEach(fn => {
+    const b = document.createElement("button");
+    b.textContent = fn.name;
+    b.className = (fn === cur) ? "on" : "";
+    b.onclick = () => { if (timer) { clearInterval(timer); timer = null; }
+                        cur = fn; rows = []; document.getElementById("xin").value = fn.a + 0.1;
+                        buildPicker(); render(); };
+    box.appendChild(b);
+  });
+  document.getElementById("formula").innerHTML =
+     "<b>" + cur.formula + "</b>　趋近的点：" + cur.vname + " → " + cur.a;
+}
+
+function addRow(x){
+  if (Math.abs(x - cur.a) < 1e-12 && cur.hole) {
+    rows.push({x:x, d:0, y:null, e:null, bad:true});
+  } else {
+    const y = cur.f(x);
+    rows.push({x:x, d:x - cur.a, y:y,
+               e:(cur.limit === null ? null : y - cur.limit), bad:false});
+  }
+  if (rows.length > 14) rows.shift();
+}
+
+function render(){
+  // 单次结果
+  const sb = document.getElementById("single");
+  if (rows.length === 0) { sb.innerHTML = "<span class='note'>还没有算过。</span>"; }
+  else {
+    const r = rows[rows.length-1];
+    if (r.bad) sb.innerHTML = "<span class='big bad'>" + cur.vname + " = " + fmt(r.x,6) +
+        "：" + (cur.why || "算式没有意义") + "</span>";
+    else sb.innerHTML = "<span class='big'>" + cur.vname + " = " + fmt(r.x,6) +
+        " 时函数值 = <span class='out'>" + fmt(r.y,8) + "</span></span>";
+  }
+  // 表
+  const tb = document.querySelector("#tbl tbody");
+  tb.innerHTML = "";
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    const side = r.d < 0 ? "l" : (r.d > 0 ? "r" : "");
+    tr.innerHTML = "<td class='" + side + "'>" + fmt(r.x,6) + "</td>" +
+      "<td class='" + side + "'>" + (r.bad ? "0" : fmt(Math.abs(r.d),6)) + "</td>" +
+      "<td class='v'>" + (r.bad ? "<span class='bad'>没有定义</span>" : fmt(r.y,8)) + "</td>" +
+      "<td>" + (r.bad || r.e === null ? "—" : fmt(Math.abs(r.e),8)) + "</td>";
+    if (r.bad) tr.className = "hit";
+    tb.appendChild(tr);
+  });
+  document.getElementById("tnote").textContent =
+     cur.limit === null ? "这个函数的值稳定不下来，所以最后一列空着。"
+                        : ("最后一列是函数值和 " + cur.limit + " 的距离。");
+  document.getElementById("verdict").innerHTML =
+     (cur.limit === null
+        ? "<span class='big bad'>极限不存在</span><br>"
+        : ("<span class='big good'>极限 = " + cur.limit + "</span><br>")) + cur.verdict;
+  draw();
+}
+
+// ---------- 画图 ----------
+function draw(){
+  const svg = document.getElementById("plot");
+  const W = 520, H = 420, L = 56, R = 18, T = 18, B = 42;
+  const [x0,x1] = cur.xr, [y0,y1] = cur.yr;
+  const px = x => L + (W-L-R)*(x-x0)/(x1-x0);
+  const py = y => H-B - (H-T-B)*(y-y0)/(y1-y0);
+  let s = "";
+  const line = (a,b,c,d,col,w,dash) =>
+    s += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}" stroke="${col}" stroke-width="${w}"${dash?` stroke-dasharray="${dash}"`:""}/>`;
+  const txt = (a,b,t,col,sz,an) =>
+    s += `<text x="${a.toFixed(1)}" y="${b.toFixed(1)}" fill="${col}" font-size="${sz||12}" text-anchor="${an||"middle"}" font-family="Microsoft YaHei, sans-serif">${t}</text>`;
+  // 网格
+  const stepx = niceStep(x1-x0), stepy = niceStep(y1-y0);
+  for (let v = Math.ceil(x0/stepx)*stepx; v <= x1+1e-9; v += stepx){
+    line(px(v),T,px(v),H-B,P.light,1);
+    txt(px(v),H-B+18,trim(v),P.neutral,11);
+  }
+  for (let v = Math.ceil(y0/stepy)*stepy; v <= y1+1e-9; v += stepy){
+    line(L,py(v),W-R,py(v),P.light,1);
+    txt(L-8,py(v)+4,trim(v),P.neutral,11,"end");
+  }
+  // 坐标轴
+  const ay = Math.min(Math.max(y0,0),y1), ax = Math.min(Math.max(x0,0),x1);
+  line(L,py(ay),W-R,py(ay),P.neutral,1.4);
+  if (x0 <= 0 && 0 <= x1) line(px(0),T,px(0),H-B,P.neutral,1.4);
+  // 猜测的极限：横线
+  if (cur.limit !== null && cur.limit >= y0 && cur.limit <= y1)
+    line(L,py(cur.limit),W-R,py(cur.limit),P.output,1.2,"5 4");
+  // 曲线
+  const N = 1400;
+  let d = "", pen = false;
+  for (let i = 0; i <= N; i++){
+    const x = x0 + (x1-x0)*i/N;
+    if (cur.hole && Math.abs(x-cur.a) < (x1-x0)/N) { pen = false; continue; }
+    if (cur.key === "u" && Math.abs(x) < (x1-x0)/N) { pen = false; continue; }
+    const y = cur.f(x);
+    if (!isFinite(y) || y < y0 || y > y1) { pen = false; continue; }
+    d += (pen ? " L " : " M ") + px(x).toFixed(1) + " " + py(y).toFixed(1);
+    pen = true;
+  }
+  s += `<path d="${d}" fill="none" stroke="${P.output}" stroke-width="2.2"/>`;
+  // 当前自变量
+  if (rows.length){
+    const r = rows[rows.length-1];
+    if (r.x >= x0 && r.x <= x1){
+      line(px(r.x),T,px(r.x),H-B,P.input,1.6,"6 4");
+      if (!r.bad && r.y >= y0 && r.y <= y1)
+        s += `<circle cx="${px(r.x).toFixed(1)}" cy="${py(r.y).toFixed(1)}" r="5" fill="${P.input}"/>`;
+    }
+  }
+  // a 这一点的空心点、实心点最后画，免得被当前自变量的竖线和点压住
+  if (cur.hole && cur.limit !== null)
+    s += `<circle cx="${px(cur.a).toFixed(1)}" cy="${py(cur.limit).toFixed(1)}" r="5" fill="#fff" stroke="${P.output}" stroke-width="2.2"/>`;
+  if (cur.key === "u"){
+    s += `<circle cx="${px(0).toFixed(1)}" cy="${py(0).toFixed(1)}" r="5" fill="#fff" stroke="${P.comp1}" stroke-width="2.2"/>`;
+    s += `<circle cx="${px(0).toFixed(1)}" cy="${py(1).toFixed(1)}" r="5" fill="${P.comp2}"/>`;
+  }
+  if (cur.key === "E")
+    s += `<circle cx="${px(4).toFixed(1)}" cy="${py(4).toFixed(1)}" r="5" fill="${P.good}"/>`;
+  txt(W-R, py(ay)-8, cur.vname, P.text, 13, "end");
+  svg.innerHTML = s;
+}
+
+function niceStep(span){
+  const raw = span/6, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const c = [1,2,5,10].find(k => raw <= k*p) || 10;
+  return c*p;
+}
+function trim(v){
+  let s = Math.abs(v) < 1e-9 ? "0" : v.toFixed(3).replace(/0+$/,"").replace(/\.$/,"");
+  return s.replace("-","−");
+}
+
+// ---------- 按钮 ----------
+document.getElementById("go").onclick = () => {
+  const v = parseFloat(document.getElementById("xin").value);
+  if (isFinite(v)) { addRow(v); render(); }
+};
+let timer = null;
+document.getElementById("auto").onclick = () => {
+  if (timer) { clearInterval(timer); timer = null; return; }
+  const seq = [-0.1,0.1,-0.01,0.01,-0.001,0.001,-0.0001,0.0001].map(d => cur.a + d);
+  let i = 0;
+  rows = [];
+  timer = setInterval(() => {
+    addRow(seq[i]);
+    document.getElementById("xin").value = seq[i];
+    render();
+    if (++i >= seq.length) { clearInterval(timer); timer = null; }
+  }, 650);
+};
+document.getElementById("clear").onclick = () => { rows = []; render(); };
+
+buildPicker();
+addRow(4.1);
+render();
+</script>
+</body>
+</html>
